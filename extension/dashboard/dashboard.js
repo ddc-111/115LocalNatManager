@@ -669,23 +669,6 @@ async function saveToken() {
   }
   resultEl.style.display = 'block';
 }
-  
-  try {
-    const result = await apiPost('/api/token', { refresh_token: token });
-    if (result.state) {
-      await chrome.storage.local.set({ refreshToken: token });
-      resultEl.className = 'alert alert-success';
-      resultEl.textContent = '令牌保存成功！';
-    } else {
-      resultEl.className = 'alert alert-error';
-      resultEl.textContent = result.message || '失败 to save token';
-    }
-  } catch (error) {
-    resultEl.className = 'alert alert-error';
-    resultEl.textContent = '连接错误';
-  }
-  resultEl.style.display = 'block';
-}
 
 async function saveConfig() {
   const resultEl = document.getElementById('config-status');
