@@ -69,10 +69,18 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+      
+      - name: Package Chrome extension
+        run: |
+          cd extension
+          zip -r ../115cloud-extension.zip .
       
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -81,25 +89,6 @@ jobs:
           files: |
             artifacts/**/*.tar.gz
             artifacts/**/*.zip
+            115cloud-extension.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  publish-extension:
-    name: Publish Chrome Extension
-    needs: release
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Package extension
-        run: |
-          cd extension
-          zip -r ../115cloud-extension.zip .
-      
-      - name: Upload extension artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: chrome-extension
-          path: 115cloud-extension.zip
