@@ -1,4 +1,15 @@
-const API_BASE = 'http://localhost:11580/api';
+const DEFAULT_API_BASE = 'http://localhost:11580';
+
+chrome.action.onClicked.addListener(async () => {
+  const url = chrome.runtime.getURL('dashboard/dashboard.html');
+  const tabs = await chrome.tabs.query({ url: url });
+  
+  if (tabs.length > 0) {
+    chrome.tabs.update(tabs[0].id, { active: true });
+  } else {
+    chrome.tabs.create({ url: url });
+  }
+});
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
@@ -8,40 +19,38 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-chrome.contextMenus.onClicked.addListener((info, tab) => {
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === 'send-to-115') {
     const url = info.linkUrl;
     if (url && (url.startsWith('magnet:') || url.startsWith('http'))) {
-      sendToCloud(url);
+      const settings = await chrome.storage.local.get(['serverUrl']);
+      const apiBase = settings.serverUrl || DEFAULT_API_BASE;
+      
+      try {
+        const response = await fetch(`${apiBase}/api/download`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ urls: url })
+        });
+        const result = await response.json();
+        
+        chrome.notifications.create({
+          type: 'basic',
+          iconUrl: 'icons/icon128.png',
+          title: '115 Cloud Manager',
+          message: result.state ? 'Task added successfully' : `Failed: ${result.message}`
+        });
+      } catch (error) {
+        chrome.notifications.create({
+          type: 'basic',
+          iconUrl: 'icons/icon128.png',
+          title: '115 Cloud Manager',
+          message: `Error: ${error.message}`
+        });
+      }
     }
   }
 });
-
-async function sendToCloud(url) {
-  try {
-    const response = await fetch(`${API_BASE}/download`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ urls: url })
-    });
-
-    const result = await response.json();
-    
-    chrome.notifications.create({
-      type: 'basic',
-      iconUrl: 'icons/icon128.png',
-      title: '115 Cloud Manager',
-      message: result.state ? 'Task added successfully' : `Failed: ${result.message}`
-    });
-  } catch (error) {
-    chrome.notifications.create({
-      type: 'basic',
-      iconUrl: 'icons/icon128.png',
-      title: '115 Cloud Manager',
-      message: `Error: ${error.message}`
-    });
-  }
-}
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'api') {
@@ -50,10 +59,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       .catch(error => sendResponse({ error: error.message }));
     return true;
   }
+  
+  if (request.action === 'getServerUrl') {
+    chrome.storage.local.get(['serverUrl']).then(settings => {
+      sendResponse({ serverUrl: settings.serverUrl || DEFAULT_API_BASE });
+    });
+    return true;
+  }
 });
 
 async function handleAPI(request) {
+  const settings = await chrome.storage.local.get(['serverUrl']);
+  const apiBase = settings.serverUrl || DEFAULT_API_BASE;
   const { method, path, body } = request;
+  
   const options = {
     method: method || 'GET',
     headers: { 'Content-Type': 'application/json' }
@@ -63,6 +82,6 @@ async function handleAPI(request) {
     options.body = JSON.stringify(body);
   }
 
-  const response = await fetch(`${API_BASE}${path}`, options);
+  const response = await fetch(`${apiBase}${path}`, options);
   return response.json();
 }

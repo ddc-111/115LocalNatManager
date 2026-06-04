@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>115 Cloud Manager</title>
+  <link rel="stylesheet" href="dashboard.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <div class="app">
+    <nav class="sidebar">
+      <div class="logo">
+        <img src="../icons/icon48.png" alt="115">
+        <span>115 Cloud</span>
+      </div>
+      <ul class="nav-links">
+        <li class="active" data-page="dashboard">
+          <i class="fas fa-tachometer-alt"></i>
+          <span>Dashboard</span>
+        </li>
+        <li data-page="magnets">
+          <i class="fas fa-magnet"></i>
+          <span>Magnet Links</span>
+        </li>
+        <li data-page="downloads">
+          <i class="fas fa-cloud-download-alt"></i>
+          <span>Downloads</span>
+        </li>
+        <li data-page="files">
+          <i class="fas fa-folder"></i>
+          <span>File Manager</span>
+        </li>
+        <li data-page="settings">
+          <i class="fas fa-cog"></i>
+          <span>Settings</span>
+        </li>
+      </ul>
+      <div class="sidebar-footer">
+        <div class="server-status" id="server-status">
+          <span class="status-dot offline"></span>
+          <span>Disconnected</span>
+        </div>
+      </div>
+    </nav>
+
+    <main class="content">
+      <header class="topbar">
+        <div class="page-title">
+          <h1 id="page-title">Dashboard</h1>
+        </div>
+        <div class="topbar-actions">
+          <button class="btn btn-icon" id="refresh-btn" title="Refresh">
+            <i class="fas fa-sync-alt"></i>
+          </button>
+          <button class="btn btn-icon" id="open-settings" title="Settings">
+            <i class="fas fa-cog"></i>
+          </button>
+        </div>
+      </header>
+
+      <div class="page-container">
+        <!-- Dashboard Page -->
+        <section id="page-dashboard" class="page active">
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-icon blue">
+                <i class="fas fa-tasks"></i>
+              </div>
+              <div class="stat-info">
+                <h3 id="active-tasks">0</h3>
+                <p>Active Tasks</p>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon green">
+                <i class="fas fa-check-circle"></i>
+              </div>
+              <div class="stat-info">
+                <h3 id="completed-tasks">0</h3>
+                <p>Completed</p>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon orange">
+                <i class="fas fa-hdd"></i>
+              </div>
+              <div class="stat-info">
+                <h3 id="storage-used">--</h3>
+                <p>Storage Used</p>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon purple">
+                <i class="fas fa-download"></i>
+              </div>
+              <div class="stat-info">
+                <h3 id="download-quota">--</h3>
+                <p>Download Quota</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h2>Recent Downloads</h2>
+              <button class="btn btn-sm btn-primary" onclick="showPage('downloads')">View All</button>
+            </div>
+            <div class="card-body">
+              <div id="recent-downloads" class="task-list">
+                <div class="empty-state">
+                  <i class="fas fa-inbox"></i>
+                  <p>No recent downloads</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h2>Quick Actions</h2>
+            </div>
+            <div class="card-body">
+              <div class="quick-actions">
+                <button class="action-btn" onclick="showPage('magnets')">
+                  <i class="fas fa-magnet"></i>
+                  <span>Add Magnet</span>
+                </button>
+                <button class="action-btn" onclick="showPage('files')">
+                  <i class="fas fa-folder-plus"></i>
+                  <span>Browse Files</span>
+                </button>
+                <button class="action-btn" id="toggle-monitor-btn">
+                  <i class="fas fa-play"></i>
+                  <span>Start Monitor</span>
+                </button>
+                <button class="action-btn" onclick="showPage('settings')">
+                  <i class="fas fa-sliders-h"></i>
+                  <span>Settings</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Magnets Page -->
+        <section id="page-magnets" class="page">
+          <div class="card">
+            <div class="card-header">
+              <h2>Add Magnet Links</h2>
+            </div>
+            <div class="card-body">
+              <div class="form-group">
+                <label>Magnet Links</label>
+                <textarea id="magnet-input" rows="6" placeholder="Enter magnet links, one per line&#10;magnet:?xt=urn:btih:...&#10;magnet:?xt=urn:btih:..."></textarea>
+              </div>
+              <div class="form-group">
+                <label>Save to Folder (optional)</label>
+                <div class="input-group">
+                  <input type="text" id="magnet-folder" placeholder="Root directory" readonly>
+                  <button class="btn btn-secondary" id="select-folder-btn">Select Folder</button>
+                </div>
+              </div>
+              <button class="btn btn-primary btn-lg" id="add-magnet-btn">
+                <i class="fas fa-plus"></i> Add to Cloud Download
+              </button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h2>Detected on Current Page</h2>
+              <button class="btn btn-sm btn-secondary" id="scan-page-btn">
+                <i class="fas fa-search"></i> Scan Page
+              </button>
+            </div>
+            <div class="card-body">
+              <div id="detected-magnets" class="magnet-list">
+                <div class="empty-state">
+                  <i class="fas fa-magnet"></i>
+                  <p>No magnet links detected</p>
+                  <small>Navigate to a page with magnet links and click "Scan Page"</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Downloads Page -->
+        <section id="page-downloads" class="page">
+          <div class="card">
+            <div class="card-header">
+              <h2>Download Tasks</h2>
+              <div class="header-actions">
+                <button class="btn btn-sm btn-secondary" id="refresh-tasks-btn">
+                  <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+                <button class="btn btn-sm btn-danger" id="clear-tasks-btn">
+                  <i class="fas fa-trash"></i> Clear All
+                </button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="filter-bar">
+                <button class="filter-btn active" data-filter="all">All</button>
+                <button class="filter-btn" data-filter="downloading">Downloading</button>
+                <button class="filter-btn" data-filter="completed">Completed</button>
+                <button class="filter-btn" data-filter="failed">Failed</button>
+              </div>
+              <div id="download-tasks" class="task-list">
+                <div class="loading">
+                  <div class="spinner"></div>
+                  <p>Loading tasks...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Files Page -->
+        <section id="page-files" class="page">
+          <div class="card">
+            <div class="card-header">
+              <div class="breadcrumb" id="file-breadcrumb">
+                <span class="crumb active" data-cid="0">
+                  <i class="fas fa-home"></i> Root
+                </span>
+              </div>
+              <div class="header-actions">
+                <button class="btn btn-sm btn-primary" id="new-folder-btn">
+                  <i class="fas fa-folder-plus"></i> New Folder
+                </button>
+                <button class="btn btn-sm btn-secondary" id="refresh-files-btn">
+                  <i class="fas fa-sync-alt"></i>
+                </button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="search-bar">
+                <i class="fas fa-search"></i>
+                <input type="text" id="file-search" placeholder="Search files...">
+              </div>
+              <div id="file-list" class="file-grid">
+                <div class="loading">
+                  <div class="spinner"></div>
+                  <p>Loading files...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Settings Page -->
+        <section id="page-settings" class="page">
+          <div class="card">
+            <div class="card-header">
+              <h2>Server Connection</h2>
+            </div>
+            <div class="card-body">
+              <div class="form-group">
+                <label>Backend Server URL</label>
+                <div class="input-group">
+                  <input type="text" id="server-url" placeholder="http://localhost:11580">
+                  <button class="btn btn-secondary" id="test-connection-btn">Test</button>
+                </div>
+                <small class="form-help">URL of your 115 Local NAT Manager backend server</small>
+              </div>
+              <div id="connection-result" class="alert" style="display:none"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h2>Authentication</h2>
+            </div>
+            <div class="card-body">
+              <div class="form-group">
+                <label>Refresh Token</label>
+                <div class="input-group">
+                  <input type="password" id="refresh-token" placeholder="Enter your 115 refresh token">
+                  <button class="btn btn-icon" id="toggle-token-visibility">
+                    <i class="fas fa-eye"></i>
+                  </button>
+                </div>
+                <small class="form-help">Get this from 115 open platform</small>
+              </div>
+              <button class="btn btn-primary" id="save-token-btn">
+                <i class="fas fa-save"></i> Save Token
+              </button>
+              <div id="token-status" class="alert" style="display:none"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h2>Download Settings</h2>
+            </div>
+            <div class="card-body">
+              <div class="form-group">
+                <label>Download Directory</label>
+                <input type="text" id="download-dir" placeholder="/Users/you/Downloads/115cloud">
+                <small class="form-help">Local directory where completed files will be downloaded</small>
+              </div>
+              <div class="form-group">
+                <label>Monitor Interval (seconds)</label>
+                <input type="number" id="monitor-interval" value="30" min="10" max="300">
+                <small class="form-help">How often to check for completed downloads</small>
+              </div>
+              <div class="form-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="auto-monitor" checked>
+                  <span>Auto-start monitor on launch</span>
+                </label>
+              </div>
+              <button class="btn btn-primary" id="save-config-btn">
+                <i class="fas fa-save"></i> Save Configuration
+              </button>
+              <div id="config-status" class="alert" style="display:none"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h2>About</h2>
+            </div>
+            <div class="card-body">
+              <div class="about-info">
+                <p><strong>115 Cloud Manager</strong> v1.1.0</p>
+                <p>Local service + Chrome extension for managing 115 cloud downloads</p>
+                <div class="about-links">
+                  <a href="https://github.com/ddc-111/115LocalNatManager" target="_blank">
+                    <i class="fab fa-github"></i> GitHub
+                  </a>
+                  <a href="https://github.com/ddc-111/115LocalNatManager/releases" target="_blank">
+                    <i class="fas fa-download"></i> Downloads
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast-container"></div>
+  
+  <div class="modal" id="folder-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Select Folder</h3>
+        <button class="btn btn-icon modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="folder-tree" class="folder-tree">
+          <div class="loading">
+            <div class="spinner"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-close">Cancel</button>
+        <button class="btn btn-primary" id="confirm-folder-btn">Select</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>
