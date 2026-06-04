@@ -10,6 +10,8 @@ import (
 	"115localnatmanager/model"
 )
 
+type ConfigUpdateRequest = model.ConfigUpdateRequest
+
 type Manager struct {
 	mu       sync.RWMutex
 	config   model.Config
