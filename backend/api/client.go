@@ -156,9 +156,18 @@ func (c *Client) doFormRequest(method, path string, data url.Values) (map[string
 	}
 	defer resp.Body.Close()
 
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if len(bodyBytes) > 0 && bodyBytes[0] == '<' {
+		return nil, fmt.Errorf("server returned HTML (status %d), token may be invalid", resp.StatusCode)
+	}
+
 	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, err
+	if err := json.Unmarshal(bodyBytes, &result); err != nil {
+		return nil, fmt.Errorf("invalid JSON response: %s", string(bodyBytes[:min(100, len(bodyBytes))]))
 	}
 	return result, nil
 }
@@ -173,9 +182,25 @@ func (c *Client) doQueryRequest(method, path string, params url.Values) (map[str
 	}
 	defer resp.Body.Close()
 
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if len(bodyBytes) > 0 && bodyBytes[0] == '<' {
+		return nil, fmt.Errorf("server returned HTML (status %d), token may be invalid", resp.StatusCode)
+	}
+
 	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, err
+	if err := json.Unmarshal(bodyBytes, &result); err != nil {
+		return nil, fmt.Errorf("invalid JSON response: %s", string(bodyBytes[:min(100, len(bodyBytes))]))
 	}
 	return result, nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
