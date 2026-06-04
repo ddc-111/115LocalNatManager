@@ -27,15 +27,22 @@ func (h *TokenHandler) SetToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.RefreshToken == "" {
+	if req.RefreshToken != "" {
+		h.config.SetRefreshToken(req.RefreshToken)
+	}
+	
+	if req.AccessToken != "" {
+		h.config.SetAccessToken(req.AccessToken, 7200)
+	}
+
+	if req.RefreshToken == "" && req.AccessToken == "" {
 		writeJSON(w, http.StatusBadRequest, model.APIResponse{
 			State:   false,
-			Message: "refresh_token is required",
+			Message: "refresh_token or access_token is required",
 		})
 		return
 	}
 
-	h.config.SetRefreshToken(req.RefreshToken)
 	if err := h.config.SaveToken(); err != nil {
 		writeJSON(w, http.StatusInternalServerError, model.APIResponse{
 			State:   false,
@@ -55,7 +62,7 @@ func (h *TokenHandler) GetTokenStatus(w http.ResponseWriter, r *http.Request) {
 
 	hasRefreshToken := token.RefreshToken != ""
 	hasAccessToken := token.AccessToken != ""
-	isExpired := token.ExpiresAt.IsZero() || token.ExpiresAt.Before(timeNow())
+	isExpired := token.ExpiresAt.IsZero() || token.ExpiresAt.Before(time.Now())
 
 	writeJSON(w, http.StatusOK, model.APIResponse{
 		State: true,

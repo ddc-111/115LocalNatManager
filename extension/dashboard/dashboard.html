@@ -282,7 +282,17 @@
                     <i class="fas fa-eye"></i>
                   </button>
                 </div>
-                <small class="form-help">从 115 开放平台获取</small>
+                <small class="form-help">从 115 开放平台获取，用于自动刷新访问令牌</small>
+              </div>
+              <div class="form-group">
+                <label>访问令牌 (Access Token)</label>
+                <div class="input-group">
+                  <input type="password" id="access-token" placeholder="输入您的 115 访问令牌">
+                  <button class="btn btn-icon" id="toggle-access-token-visibility">
+                    <i class="fas fa-eye"></i>
+                  </button>
+                </div>
+                <small class="form-help">直接使用访问令牌，有效期约2小时</small>
               </div>
               <button class="btn btn-primary" id="save-token-btn">
                 <i class="fas fa-save"></i> 保存令牌

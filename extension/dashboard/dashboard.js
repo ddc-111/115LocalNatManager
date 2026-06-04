@@ -12,13 +12,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function loadSettings() {
-  const settings = await chrome.storage.local.get(['serverUrl', 'refreshToken']);
+  const settings = await chrome.storage.local.get(['serverUrl', 'refreshToken', 'accessToken']);
   if (settings.serverUrl) {
     apiBase = settings.serverUrl;
     document.getElementById('server-url').value = settings.serverUrl;
   }
   if (settings.refreshToken) {
     document.getElementById('refresh-token').value = settings.refreshToken;
+  }
+  if (settings.accessToken) {
+    document.getElementById('access-token').value = settings.accessToken;
   }
 }
 
@@ -80,6 +83,14 @@ function initEventListeners() {
   document.getElementById('toggle-token-visibility').addEventListener('click', () => {
     const input = document.getElementById('refresh-token');
     const icon = document.querySelector('#toggle-token-visibility i');
+    input.type = input.type === 'password' ? 'text' : 'password';
+    icon.classList.toggle('fa-eye');
+    icon.classList.toggle('fa-eye-slash');
+  });
+  
+  document.getElementById('toggle-access-token-visibility').addEventListener('click', () => {
+    const input = document.getElementById('access-token');
+    const icon = document.querySelector('#toggle-access-token-visibility i');
     input.type = input.type === 'password' ? 'text' : 'password';
     icon.classList.toggle('fa-eye');
     icon.classList.toggle('fa-eye-slash');
@@ -626,15 +637,38 @@ async function testConnection() {
 }
 
 async function saveToken() {
-  const token = document.getElementById('refresh-token').value.trim();
+  const refreshToken = document.getElementById('refresh-token').value.trim();
+  const accessToken = document.getElementById('access-token').value.trim();
   const resultEl = document.getElementById('token-status');
   
-  if (!token) {
+  if (!refreshToken && !accessToken) {
     resultEl.className = 'alert alert-error';
-    resultEl.textContent = '请输入刷新令牌';
+    resultEl.textContent = '请输入刷新令牌或访问令牌';
     resultEl.style.display = 'block';
     return;
   }
+  
+  try {
+    const body = {};
+    if (refreshToken) body.refresh_token = refreshToken;
+    if (accessToken) body.access_token = accessToken;
+    
+    const result = await apiPost('/api/token', body);
+    if (result.state) {
+      if (refreshToken) await chrome.storage.local.set({ refreshToken });
+      if (accessToken) await chrome.storage.local.set({ accessToken });
+      resultEl.className = 'alert alert-success';
+      resultEl.textContent = '令牌保存成功！';
+    } else {
+      resultEl.className = 'alert alert-error';
+      resultEl.textContent = result.message || '保存令牌失败';
+    }
+  } catch (error) {
+    resultEl.className = 'alert alert-error';
+    resultEl.textContent = '连接错误';
+  }
+  resultEl.style.display = 'block';
+}
   
   try {
     const result = await apiPost('/api/token', { refresh_token: token });
