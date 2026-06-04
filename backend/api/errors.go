@@ -46,7 +46,7 @@ var errorMessages = map[int]string{
 type APIError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
-	Error   string `json:"error"`
+	Err     string `json:"error"`
 }
 
 func (e *APIError) Error() string {

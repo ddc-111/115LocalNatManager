@@ -63,7 +63,7 @@ func parseAPIError(result map[string]interface{}) error {
 	return &APIError{
 		Code:    int(code),
 		Message: msg,
-		Error:   errMsg,
+		Err:     errMsg,
 	}
 }
 
@@ -104,7 +104,7 @@ func (c *Client) refreshAccessToken() error {
 		apiErr := &APIError{
 			Code:    int(code),
 			Message: msg,
-			Error:   errMsg,
+			Err:     errMsg,
 		}
 		return apiErr
 	}
