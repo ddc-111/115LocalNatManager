@@ -2,7 +2,7 @@
 
 set -e
 
-REPO="yourusername/115LocalNatManager"
+REPO="ddc-111/115LocalNatManager"
 INSTALL_DIR="$HOME/.115manager"
 BIN_NAME="115manager"
 

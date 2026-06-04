@@ -16,18 +16,18 @@ A local service + Chrome extension for managing 115 cloud downloads with automat
 ### macOS / Linux
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yourusername/115LocalNatManager/main/scripts/install-mac.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ddc-111/115LocalNatManager/main/scripts/install-mac.sh | bash
 ```
 
 ### Windows (PowerShell as Administrator)
 
 ```powershell
-irm https://raw.githubusercontent.com/yourusername/115LocalNatManager/main/scripts/install-windows.ps1 | iex
+irm https://raw.githubusercontent.com/ddc-111/115LocalNatManager/main/scripts/install-windows.ps1 | iex
 ```
 
 ### Manual Installation
 
-1. Download the latest release from [GitHub Releases](https://github.com/yourusername/115LocalNatManager/releases)
+1. Download the latest release from [GitHub Releases](https://github.com/ddc-111/115LocalNatManager/releases)
 2. Extract to a directory
 3. Run the binary: `./115manager`
 
@@ -105,7 +105,7 @@ The backend server runs on `http://localhost:11580` by default.
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/115LocalNatManager.git
+git clone https://github.com/ddc-111/115LocalNatManager.git
 cd 115LocalNatManager
 
 # Build backend

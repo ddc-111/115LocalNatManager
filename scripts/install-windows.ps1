@@ -2,7 +2,7 @@
 
 $ErrorActionPreference = "Stop"
 
-$Repo = "yourusername/115LocalNatManager"
+$Repo = "ddc-111/115LocalNatManager"
 $InstallDir = "$env:USERPROFILE\.115manager"
 $BinName = "115manager.exe"
 $ServiceName = "115Manager"
