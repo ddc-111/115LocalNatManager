@@ -54,6 +54,7 @@ get_latest_version() {
 download_binary() {
     VERSION=$1
     FILENAME="${BIN_NAME}-${MACHINE}-${ARCH}.tar.gz"
+    BINARY_NAME="${BIN_NAME}-${MACHINE}-${ARCH}"
     URL="https://github.com/${REPO}/releases/download/${VERSION}/${FILENAME}"
     
     print_info "Downloading ${FILENAME}..."
@@ -72,6 +73,7 @@ download_binary() {
     cd "${INSTALL_DIR}"
     tar -xzf "${FILENAME}"
     rm -f "${FILENAME}"
+    mv "${BINARY_NAME}" "${BIN_NAME}" 2>/dev/null || true
     chmod +x "${BIN_NAME}"
 }
 
