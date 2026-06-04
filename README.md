@@ -1,17 +1,17 @@
-# 115 Local NAT Manager
+# 115 云盘本地管理器
 
-A local service + Chrome extension for managing 115 cloud downloads with automatic magnet link detection.
+本地服务 + Chrome 扩展，用于管理 115 云盘下载任务。
 
-## Features
+## 功能特性
 
-- **Magnet Link Detection**: Automatically detects magnet links on any webpage
-- **One-Click Cloud Download**: Send magnet links directly to 115 cloud
-- **Auto Download Monitor**: Automatically downloads completed files to local storage
-- **File Management**: Browse, create folders, delete files in your 115 cloud
-- **Token Management**: Secure refresh token based authentication
-- **Cross-Platform**: Works on macOS, Windows, and Linux
+- **磁力链接检测**：自动检测网页中的磁力链接
+- **一键云下载**：直接发送磁力链接到 115 云盘
+- **自动下载监控**：自动下载已完成的文件到本地
+- **文件管理**：浏览、创建文件夹、删除文件
+- **令牌管理**：基于 Refresh Token 的安全认证
+- **跨平台**：支持 macOS、Windows 和 Linux
 
-## Quick Start
+## 快速安装
 
 ### macOS / Linux
 
@@ -19,130 +19,130 @@ A local service + Chrome extension for managing 115 cloud downloads with automat
 curl -fsSL https://raw.githubusercontent.com/ddc-111/115LocalNatManager/master/scripts/install-mac.sh | bash
 ```
 
-### Windows (PowerShell as Administrator)
+### Windows（管理员 PowerShell）
 
 ```powershell
 irm https://raw.githubusercontent.com/ddc-111/115LocalNatManager/master/scripts/install-windows.ps1 | iex
 ```
 
-### Manual Installation
+### 手动安装
 
-1. Download the latest release from [GitHub Releases](https://github.com/ddc-111/115LocalNatManager/releases)
-2. Extract to a directory
-3. Run the binary: `./115manager`
+1. 从 [GitHub Releases](https://github.com/ddc-111/115LocalNatManager/releases) 下载最新版本
+2. 解压到目录
+3. 运行二进制文件：`./115manager`
 
-## Chrome Extension Setup
+## Chrome 扩展安装
 
-1. Open Chrome and go to `chrome://extensions`
-2. Enable "Developer mode" (top right)
-3. Click "Load unpacked"
-4. Select the `extension` folder from this repository
+1. 下载 `115cloud-extension.zip` 并解压
+2. 打开 Chrome，访问 `chrome://extensions`
+3. 启用右上角的"开发者模式"
+4. 点击"加载已解压的扩展程序"
+5. 选择解压后的 `extension` 文件夹
 
-## Configuration
+## 配置说明
 
-### Setting Up Refresh Token
+### 设置刷新令牌
 
-1. Get your refresh token from [115 Open Platform](https://open.115.com/)
-2. Click the extension icon in Chrome
-3. Go to Settings (gear icon)
-4. Enter your refresh token and click "Save Token"
+1. 从 [115 开放平台](https://open.115.com/) 获取刷新令牌
+2. 点击 Chrome 扩展图标
+3. 进入"设置"页面
+4. 输入刷新令牌并点击"保存令牌"
 
-### Download Settings
+### 下载设置
 
-- **Download Directory**: Where completed files are saved locally
-- **Monitor Interval**: How often to check for completed downloads (default: 30 seconds)
+- **下载目录**：已完成文件的本地保存路径
+- **监控间隔**：检查已完成下载的频率（默认：30 秒）
 
-## API Reference
+## API 接口
 
-The backend server runs on `http://localhost:11580` by default.
+后端服务默认运行在 `http://localhost:11580`。
 
-### Authentication
+### 身份验证
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/token` | Set refresh token |
-| GET | `/api/token` | Get token status |
+| 方法 | 接口 | 说明 |
+|------|------|------|
+| POST | `/api/token` | 设置刷新令牌 |
+| GET | `/api/token` | 获取令牌状态 |
 
-### File Management
+### 文件管理
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/files` | List files |
-| GET | `/api/files/:id` | Get file info |
-| PUT | `/api/files/:id` | Rename file |
-| POST | `/api/files/delete` | Delete files |
-| POST | `/api/files/move` | Move files |
-| GET | `/api/files/search` | Search files |
-| POST | `/api/folders` | Create folder |
+| 方法 | 接口 | 说明 |
+|------|------|------|
+| GET | `/api/files` | 获取文件列表 |
+| GET | `/api/files/:id` | 获取文件详情 |
+| PUT | `/api/files/:id` | 重命名文件 |
+| POST | `/api/files/delete` | 删除文件 |
+| POST | `/api/files/move` | 移动文件 |
+| GET | `/api/files/search` | 搜索文件 |
+| POST | `/api/folders` | 创建文件夹 |
 
-### Cloud Download
+### 云下载
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/download` | Add download task |
-| GET | `/api/download/tasks` | List download tasks |
-| DELETE | `/api/download/tasks/:hash` | Delete task |
-| POST | `/api/download/clear` | Clear tasks |
-| GET | `/api/download/quota` | Get download quota |
-| GET | `/api/download/monitor` | Get monitor status |
-| POST | `/api/download/monitor` | Toggle monitor |
+| 方法 | 接口 | 说明 |
+|------|------|------|
+| POST | `/api/download` | 添加下载任务 |
+| GET | `/api/download/tasks` | 获取任务列表 |
+| DELETE | `/api/download/tasks/:hash` | 删除任务 |
+| POST | `/api/download/clear` | 清空任务 |
+| GET | `/api/download/quota` | 获取下载配额 |
+| GET | `/api/download/monitor` | 获取监控状态 |
+| POST | `/api/download/monitor` | 切换监控 |
 
-### Configuration
+### 配置
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/config` | Get configuration |
-| PUT | `/api/config` | Update configuration |
+| 方法 | 接口 | 说明 |
+|------|------|------|
+| GET | `/api/config` | 获取配置 |
+| PUT | `/api/config` | 更新配置 |
 
-## Development
+## 开发指南
 
-### Prerequisites
+### 环境要求
 
 - Go 1.21+
-- Chrome browser
+- Chrome 浏览器
 
-### Build from Source
+### 从源码构建
 
 ```bash
-# Clone repository
+# 克隆仓库
 git clone https://github.com/ddc-111/115LocalNatManager.git
 cd 115LocalNatManager
 
-# Build backend
+# 构建后端
 cd backend
 go build -o ../dist/115manager .
 
-# Run
+# 运行
 ./dist/115manager
 ```
 
-### Project Structure
+### 项目结构
 
 ```
 115LocalNatManager/
-├── backend/                    # Go backend service
-│   ├── api/                    # 115 API client
-│   ├── config/                 # Configuration management
-│   ├── handler/                # HTTP handlers
-│   ├── service/                # Business logic
-│   └── main.go                 # Entry point
-├── extension/                  # Chrome extension
-│   ├── content/                # Content scripts (magnet detection)
-│   ├── background/             # Background service worker
-│   ├── popup/                  # Popup UI
-│   └── options/                # Settings page
-├── scripts/                    # Installation scripts
+├── backend/                    # Go 后端服务
+│   ├── api/                    # 115 API 客户端
+│   ├── config/                 # 配置管理
+│   ├── handler/                # HTTP 处理器
+│   ├── service/                # 业务逻辑
+│   └── main.go                 # 入口文件
+├── extension/                  # Chrome 扩展
+│   ├── content/                # 内容脚本（磁力链检测）
+│   ├── background/             # 后台服务
+│   └── dashboard/              # 管理界面
+├── scripts/                    # 安装脚本
 └── .github/workflows/          # CI/CD
 ```
 
-## License
+## 许可证
 
 MIT License
 
-## Contributing
+## 贡献指南
 
-1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+1. Fork 本仓库
+2. 创建功能分支
+3. 提交更改
+4. 推送到分支
+5. 创建 Pull Request
