@@ -41,11 +41,11 @@ function showPage(page) {
   });
   
   const titles = {
-    dashboard: 'Dashboard',
-    magnets: 'Magnet Links',
-    downloads: 'Download Tasks',
-    files: 'File Manager',
-    settings: 'Settings'
+    dashboard: '控制台',
+    magnets: '磁力链接',
+    downloads: '下载任务',
+    files: '文件管理',
+    settings: '设置'
   };
   document.getElementById('page-title').textContent = titles[page] || page;
   
@@ -112,13 +112,13 @@ async function checkServerStatus() {
     
     const statusEl = document.getElementById('server-status');
     if (result.status === 'ok') {
-      statusEl.innerHTML = '<span class="status-dot online"></span><span>Connected</span>';
+      statusEl.innerHTML = '<span class="status-dot online"></span><span>已连接</span>';
       return true;
     }
   } catch (error) {}
   
   const statusEl = document.getElementById('server-status');
-  statusEl.innerHTML = '<span class="status-dot offline"></span><span>Disconnected</span>';
+  statusEl.innerHTML = '<span class="status-dot offline"></span><span>未连接</span>';
   return false;
 }
 
@@ -156,14 +156,14 @@ async function loadDashboard() {
         user.rt_space_info?.all_use?.size_format || '--';
     }
   } catch (error) {
-    console.error('Failed to load dashboard:', error);
+    console.error('失败 to load dashboard:', error);
   }
 }
 
 function renderRecentTasks(tasks) {
   const container = document.getElementById('recent-downloads');
   if (!tasks.length) {
-    container.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>No recent downloads</p></div>';
+    container.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>暂无下载记录</p></div>';
     return;
   }
   
@@ -177,7 +177,7 @@ function renderRecentTasks(tasks) {
           <i class="fas fa-${statusIcon}"></i>
         </div>
         <div class="task-info">
-          <div class="task-name">${escapeHtml(task.name || 'Unknown')}</div>
+          <div class="task-name">${escapeHtml(task.name || '未知')}</div>
           <div class="task-meta">${formatSize(task.size)} · ${formatTime(task.add_time)}</div>
         </div>
         <div class="task-progress">
@@ -194,26 +194,26 @@ function renderRecentTasks(tasks) {
 async function addMagnets() {
   const input = document.getElementById('magnet-input').value.trim();
   if (!input) {
-    showToast('Please enter magnet links', 'error');
+    showToast('请输入磁力链接', 'error');
     return;
   }
   
   const urls = input.split('\n').filter(u => u.trim().startsWith('magnet:')).join('\n');
   if (!urls) {
-    showToast('No valid magnet links found', 'error');
+    showToast('未找到有效的磁力链接', 'error');
     return;
   }
   
   try {
     const result = await apiPost('/api/download', { urls, path_id: selectedFolder?.id || '' });
     if (result.state) {
-      showToast('Tasks added successfully!', 'success');
+      showToast('任务添加成功！', 'success');
       document.getElementById('magnet-input').value = '';
     } else {
-      showToast(result.message || 'Failed to add tasks', 'error');
+      showToast(result.message || '添加任务失败', 'error');
     }
   } catch (error) {
-    showToast('Connection error', 'error');
+    showToast('连接错误', 'error');
   }
 }
 
@@ -231,7 +231,7 @@ async function scanCurrentPage() {
           </div>
           <div class="magnet-actions">
             <button class="btn btn-sm btn-primary add-detected" data-url="${escapeHtml(magnet)}">
-              <i class="fas fa-plus"></i> Add
+              <i class="fas fa-plus"></i> 添加
             </button>
           </div>
         </div>
@@ -243,36 +243,36 @@ async function scanCurrentPage() {
           try {
             const result = await apiPost('/api/download', { urls: url });
             if (result.state) {
-              showToast('Task added!', 'success');
+              showToast('任务已添加！', 'success');
               btn.disabled = true;
-              btn.textContent = 'Added';
+              btn.textContent = '添加ed';
             }
           } catch (error) {
-            showToast('Failed to add task', 'error');
+            showToast('添加任务失败', 'error');
           }
         });
       });
     } else {
-      container.innerHTML = '<div class="empty-state"><i class="fas fa-magnet"></i><p>No magnet links detected on this page</p></div>';
+      container.innerHTML = '<div class="empty-state"><i class="fas fa-magnet"></i><p>当前页面未检测到磁力链接</p></div>';
     }
   } catch (error) {
-    showToast('Could not scan page', 'error');
+    showToast('无法扫描页面', 'error');
   }
 }
 
 async function loadTasks() {
   const container = document.getElementById('download-tasks');
-  container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading tasks...</p></div>';
+  container.innerHTML = '<div class="loading"><div class="spinner"></div><p>加载中...</p></div>';
   
   try {
     const result = await apiGet('/api/download/tasks');
     if (result.state && result.data?.tasks?.length > 0) {
       renderTasks(result.data.tasks);
     } else {
-      container.innerHTML = '<div class="empty-state"><i class="fas fa-cloud-download-alt"></i><p>No download tasks</p></div>';
+      container.innerHTML = '<div class="empty-state"><i class="fas fa-cloud-download-alt"></i><p>暂无下载任务</p></div>';
     }
   } catch (error) {
-    container.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>Failed to load tasks</p></div>';
+    container.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>加载任务失败</p></div>';
   }
 }
 
@@ -281,7 +281,7 @@ function renderTasks(tasks) {
   container.innerHTML = tasks.map(task => {
     const statusClass = task.status === 2 ? 'completed' : task.status === -1 ? 'failed' : task.status === 0 ? 'pending' : 'downloading';
     const statusIcon = task.status === 2 ? 'check-circle' : task.status === -1 ? 'times-circle' : task.status === 0 ? 'clock' : 'spinner fa-spin';
-    const statusText = task.status === 2 ? 'Completed' : task.status === -1 ? 'Failed' : task.status === 0 ? 'Pending' : 'Downloading';
+    const statusText = task.status === 2 ? '已完成' : task.status === -1 ? '失败' : task.status === 0 ? '等待中' : '下载中';
     
     return `
       <div class="task-item" data-status="${statusClass}">
@@ -289,7 +289,7 @@ function renderTasks(tasks) {
           <i class="fas fa-${statusIcon}"></i>
         </div>
         <div class="task-info">
-          <div class="task-name">${escapeHtml(task.name || 'Unknown')}</div>
+          <div class="task-name">${escapeHtml(task.name || '未知')}</div>
           <div class="task-meta">${formatSize(task.size)} · ${statusText}</div>
         </div>
         <div class="task-progress">
@@ -309,13 +309,13 @@ function renderTasks(tasks) {
   
   container.querySelectorAll('.delete-task').forEach(btn => {
     btn.addEventListener('click', async () => {
-      if (confirm('Delete this task?')) {
+      if (confirm('确定删除此任务？')) {
         try {
           await apiDelete(`/api/download/tasks/${btn.dataset.hash}`);
-          showToast('Task deleted', 'success');
+          showToast('任务已删除', 'success');
           loadTasks();
         } catch (error) {
-          showToast('Failed to delete task', 'error');
+          showToast('失败 to delete task', 'error');
         }
       }
     });
@@ -333,31 +333,31 @@ function filterTasks(filter) {
 }
 
 async function clearAllTasks() {
-  if (!confirm('Clear all download tasks?')) return;
+  if (!confirm('确定清空所有下载任务？')) return;
   
   try {
     await apiPost('/api/download/clear', { flag: 1 });
-    showToast('All tasks cleared', 'success');
+    showToast('所有任务已清空', 'success');
     loadTasks();
   } catch (error) {
-    showToast('Failed to clear tasks', 'error');
+    showToast('失败 to clear tasks', 'error');
   }
 }
 
 async function loadFiles(cid = '0') {
   currentCID = cid;
   const container = document.getElementById('file-list');
-  container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading files...</p></div>';
+  container.innerHTML = '<div class="loading"><div class="spinner"></div><p>加载中...</p></div>';
   
   try {
     const result = await apiGet(`/api/files?cid=${cid}&limit=100`);
     if (result.state && result.data?.length > 0) {
       renderFiles(result.data);
     } else {
-      container.innerHTML = '<div class="empty-state"><i class="fas fa-folder-open"></i><p>This folder is empty</p></div>';
+      container.innerHTML = '<div class="empty-state"><i class="fas fa-folder-open"></i><p>此文件夹为空</p></div>';
     }
   } catch (error) {
-    container.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>Failed to load files</p></div>';
+    container.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>失败 to load files</p></div>';
   }
 }
 
@@ -441,34 +441,34 @@ async function searchFiles() {
   }
   
   const container = document.getElementById('file-list');
-  container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Searching...</p></div>';
+  container.innerHTML = '<div class="loading"><div class="spinner"></div><p>搜索中...</p></div>';
   
   try {
     const result = await apiGet(`/api/files/search?q=${encodeURIComponent(query)}&limit=50`);
     if (result.state && result.data?.length > 0) {
       renderFiles(result.data);
     } else {
-      container.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>No files found</p></div>';
+      container.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>未找到文件</p></div>';
     }
   } catch (error) {
-    container.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>Search failed</p></div>';
+    container.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>搜索失败</p></div>';
   }
 }
 
 async function createNewFolder() {
-  const name = prompt('Enter folder name:');
+  const name = prompt('输入文件夹名称：');
   if (!name) return;
   
   try {
     const result = await apiPost('/api/folders', { parent_id: currentCID, name });
     if (result.state) {
-      showToast('Folder created', 'success');
+      showToast('文件夹已创建', 'success');
       loadFiles(currentCID);
     } else {
-      showToast(result.message || 'Failed to create folder', 'error');
+      showToast(result.message || '失败 to create folder', 'error');
     }
   } catch (error) {
-    showToast('Failed to create folder', 'error');
+    showToast('失败 to create folder', 'error');
   }
 }
 
@@ -518,31 +518,31 @@ function showFileContextMenu(e, fileId, isFolder) {
 }
 
 async function deleteFile(fileId) {
-  if (!confirm('Delete this file?')) return;
+  if (!confirm('确定删除此文件？')) return;
   
   try {
     const result = await apiPost('/api/files/delete', { file_ids: fileId });
     if (result.state) {
-      showToast('File deleted', 'success');
+      showToast('文件已删除', 'success');
       loadFiles(currentCID);
     }
   } catch (error) {
-    showToast('Failed to delete file', 'error');
+    showToast('失败 to delete file', 'error');
   }
 }
 
 async function renameFile(fileId) {
-  const name = prompt('Enter new name:');
+  const name = prompt('输入新名称：');
   if (!name) return;
   
   try {
     const result = await apiPut(`/api/files/${fileId}`, { name });
     if (result.state) {
-      showToast('File renamed', 'success');
+      showToast('文件已重命名', 'success');
       loadFiles(currentCID);
     }
   } catch (error) {
-    showToast('Failed to rename file', 'error');
+    showToast('失败 to rename file', 'error');
   }
 }
 
@@ -555,12 +555,12 @@ async function getFileLink(fileId) {
         const url = Object.values(dlResult.data)[0]?.url?.url;
         if (url) {
           await navigator.clipboard.writeText(url);
-          showToast('Download link copied!', 'success');
+          showToast('下载链接已复制！', 'success');
         }
       }
     }
   } catch (error) {
-    showToast('Failed to get link', 'error');
+    showToast('失败 to get link', 'error');
   }
 }
 
@@ -580,7 +580,7 @@ async function openFolderModal() {
           <i class="fas fa-folder"></i>
           <span>${escapeHtml(folder.fn)}</span>
         </div>
-      `).join('') || '<div class="empty-state"><p>No folders</p></div>';
+      `).join('') || '<div class="empty-state"><p>暂无文件夹</p></div>';
       
       tree.querySelectorAll('.folder-item').forEach(item => {
         item.addEventListener('click', () => {
@@ -591,7 +591,7 @@ async function openFolderModal() {
       });
     }
   } catch (error) {
-    tree.innerHTML = '<div class="empty-state"><p>Failed to load folders</p></div>';
+    tree.innerHTML = '<div class="empty-state"><p>失败 to load folders</p></div>';
   }
 }
 
@@ -612,15 +612,15 @@ async function testConnection() {
     
     if (result.status === 'ok') {
       resultEl.className = 'alert alert-success';
-      resultEl.textContent = 'Connection successful!';
+      resultEl.textContent = '连接成功！';
       apiBase = url;
       await chrome.storage.local.set({ serverUrl: url });
     } else {
-      throw new Error('Invalid response');
+      throw new Error('无效响应');
     }
   } catch (error) {
     resultEl.className = 'alert alert-error';
-    resultEl.textContent = 'Connection failed. Is the server running?';
+    resultEl.textContent = '连接失败，请检查服务器是否运行';
   }
   resultEl.style.display = 'block';
 }
@@ -631,7 +631,7 @@ async function saveToken() {
   
   if (!token) {
     resultEl.className = 'alert alert-error';
-    resultEl.textContent = 'Please enter a refresh token';
+    resultEl.textContent = '请输入刷新令牌';
     resultEl.style.display = 'block';
     return;
   }
@@ -641,14 +641,14 @@ async function saveToken() {
     if (result.state) {
       await chrome.storage.local.set({ refreshToken: token });
       resultEl.className = 'alert alert-success';
-      resultEl.textContent = 'Token saved successfully!';
+      resultEl.textContent = '令牌保存成功！';
     } else {
       resultEl.className = 'alert alert-error';
-      resultEl.textContent = result.message || 'Failed to save token';
+      resultEl.textContent = result.message || '失败 to save token';
     }
   } catch (error) {
     resultEl.className = 'alert alert-error';
-    resultEl.textContent = 'Connection error';
+    resultEl.textContent = '连接错误';
   }
   resultEl.style.display = 'block';
 }
@@ -664,14 +664,14 @@ async function saveConfig() {
     const result = await apiPut('/api/config', config);
     if (result.state) {
       resultEl.className = 'alert alert-success';
-      resultEl.textContent = 'Configuration saved!';
+      resultEl.textContent = '配置已保存！';
     } else {
       resultEl.className = 'alert alert-error';
-      resultEl.textContent = result.message || 'Failed to save config';
+      resultEl.textContent = result.message || '失败 to save config';
     }
   } catch (error) {
     resultEl.className = 'alert alert-error';
-    resultEl.textContent = 'Connection error';
+    resultEl.textContent = '连接错误';
   }
   resultEl.style.display = 'block';
 }
@@ -690,16 +690,16 @@ async function toggleMonitor() {
       const text = btn.querySelector('span');
       if (isRunning) {
         icon.classList.replace('fa-pause', 'fa-play');
-        text.textContent = 'Start Monitor';
-        showToast('Monitor stopped', 'info');
+        text.textContent = '启动监控';
+        showToast('监控已停止', 'info');
       } else {
         icon.classList.replace('fa-play', 'fa-pause');
-        text.textContent = 'Stop Monitor';
-        showToast('Monitor started', 'success');
+        text.textContent = '停止监控';
+        showToast('监控已启动', 'success');
       }
     }
   } catch (error) {
-    showToast('Failed to toggle monitor', 'error');
+    showToast('失败 to toggle monitor', 'error');
   }
 }
 

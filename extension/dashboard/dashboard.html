@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>115 Cloud Manager</title>
+  <title>115 云盘管理</title>
   <link rel="stylesheet" href="dashboard.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -12,34 +12,34 @@
     <nav class="sidebar">
       <div class="logo">
         <img src="../icons/icon48.png" alt="115">
-        <span>115 Cloud</span>
+        <span>115 云盘</span>
       </div>
       <ul class="nav-links">
         <li class="active" data-page="dashboard">
           <i class="fas fa-tachometer-alt"></i>
-          <span>Dashboard</span>
+          <span>控制台</span>
         </li>
         <li data-page="magnets">
           <i class="fas fa-magnet"></i>
-          <span>Magnet Links</span>
+          <span>磁力链接</span>
         </li>
         <li data-page="downloads">
           <i class="fas fa-cloud-download-alt"></i>
-          <span>Downloads</span>
+          <span>下载任务</span>
         </li>
         <li data-page="files">
           <i class="fas fa-folder"></i>
-          <span>File Manager</span>
+          <span>文件管理</span>
         </li>
         <li data-page="settings">
           <i class="fas fa-cog"></i>
-          <span>Settings</span>
+          <span>设置</span>
         </li>
       </ul>
       <div class="sidebar-footer">
         <div class="server-status" id="server-status">
           <span class="status-dot offline"></span>
-          <span>Disconnected</span>
+          <span>未连接</span>
         </div>
       </div>
     </nav>
@@ -47,7 +47,7 @@
     <main class="content">
       <header class="topbar">
         <div class="page-title">
-          <h1 id="page-title">Dashboard</h1>
+          <h1 id="page-title">控制台</h1>
         </div>
         <div class="topbar-actions">
           <button class="btn btn-icon" id="refresh-btn" title="Refresh">
@@ -69,7 +69,7 @@
               </div>
               <div class="stat-info">
                 <h3 id="active-tasks">0</h3>
-                <p>Active Tasks</p>
+                <p>进行中任务</p>
               </div>
             </div>
             <div class="stat-card">
@@ -78,7 +78,7 @@
               </div>
               <div class="stat-info">
                 <h3 id="completed-tasks">0</h3>
-                <p>Completed</p>
+                <p>已完成</p>
               </div>
             </div>
             <div class="stat-card">
@@ -87,7 +87,7 @@
               </div>
               <div class="stat-info">
                 <h3 id="storage-used">--</h3>
-                <p>Storage Used</p>
+                <p>已用空间</p>
               </div>
             </div>
             <div class="stat-card">
@@ -96,21 +96,21 @@
               </div>
               <div class="stat-info">
                 <h3 id="download-quota">--</h3>
-                <p>Download Quota</p>
+                <p>下载配额</p>
               </div>
             </div>
           </div>
 
           <div class="card">
             <div class="card-header">
-              <h2>Recent Downloads</h2>
-              <button class="btn btn-sm btn-primary" onclick="showPage('downloads')">View All</button>
+              <h2>最近下载</h2>
+              <button class="btn btn-sm btn-primary" onclick="showPage('downloads')">查看全部</button>
             </div>
             <div class="card-body">
               <div id="recent-downloads" class="task-list">
                 <div class="empty-state">
                   <i class="fas fa-inbox"></i>
-                  <p>No recent downloads</p>
+                  <p>暂无下载记录</p>
                 </div>
               </div>
             </div>
@@ -118,25 +118,25 @@
 
           <div class="card">
             <div class="card-header">
-              <h2>Quick Actions</h2>
+              <h2>快捷操作</h2>
             </div>
             <div class="card-body">
               <div class="quick-actions">
                 <button class="action-btn" onclick="showPage('magnets')">
                   <i class="fas fa-magnet"></i>
-                  <span>Add Magnet</span>
+                  <span>添加磁力链</span>
                 </button>
                 <button class="action-btn" onclick="showPage('files')">
                   <i class="fas fa-folder-plus"></i>
-                  <span>Browse Files</span>
+                  <span>浏览文件</span>
                 </button>
                 <button class="action-btn" id="toggle-monitor-btn">
                   <i class="fas fa-play"></i>
-                  <span>Start Monitor</span>
+                  <span>启动监控</span>
                 </button>
                 <button class="action-btn" onclick="showPage('settings')">
                   <i class="fas fa-sliders-h"></i>
-                  <span>Settings</span>
+                  <span>系统设置</span>
                 </button>
               </div>
             </div>
@@ -147,39 +147,39 @@
         <section id="page-magnets" class="page">
           <div class="card">
             <div class="card-header">
-              <h2>Add Magnet Links</h2>
+              <h2>添加磁力链接</h2>
             </div>
             <div class="card-body">
               <div class="form-group">
-                <label>Magnet Links</label>
-                <textarea id="magnet-input" rows="6" placeholder="Enter magnet links, one per line&#10;magnet:?xt=urn:btih:...&#10;magnet:?xt=urn:btih:..."></textarea>
+                <label>磁力链接</label>
+                <textarea id="magnet-input" rows="6" placeholder="输入磁力链接，每行一个&#10;magnet:?xt=urn:btih:...&#10;magnet:?xt=urn:btih:..."></textarea>
               </div>
               <div class="form-group">
-                <label>Save to Folder (optional)</label>
+                <label>保存到文件夹（可选）</label>
                 <div class="input-group">
-                  <input type="text" id="magnet-folder" placeholder="Root directory" readonly>
-                  <button class="btn btn-secondary" id="select-folder-btn">Select Folder</button>
+                  <input type="text" id="magnet-folder" placeholder="根目录" readonly>
+                  <button class="btn btn-secondary" id="select-folder-btn">选择文件夹</button>
                 </div>
               </div>
               <button class="btn btn-primary btn-lg" id="add-magnet-btn">
-                <i class="fas fa-plus"></i> Add to Cloud Download
+                <i class="fas fa-plus"></i> 添加到云下载
               </button>
             </div>
           </div>
 
           <div class="card">
             <div class="card-header">
-              <h2>Detected on Current Page</h2>
+              <h2>当前页面检测到的链接</h2>
               <button class="btn btn-sm btn-secondary" id="scan-page-btn">
-                <i class="fas fa-search"></i> Scan Page
+                <i class="fas fa-search"></i> 扫描页面
               </button>
             </div>
             <div class="card-body">
               <div id="detected-magnets" class="magnet-list">
                 <div class="empty-state">
                   <i class="fas fa-magnet"></i>
-                  <p>No magnet links detected</p>
-                  <small>Navigate to a page with magnet links and click "Scan Page"</small>
+                  <p>未检测到磁力链接</p>
+                  <small>请导航到包含磁力链接的页面，然后点击"扫描页面"</small>
                 </div>
               </div>
             </div>
@@ -190,27 +190,27 @@
         <section id="page-downloads" class="page">
           <div class="card">
             <div class="card-header">
-              <h2>Download Tasks</h2>
+              <h2>下载任务</h2>
               <div class="header-actions">
                 <button class="btn btn-sm btn-secondary" id="refresh-tasks-btn">
-                  <i class="fas fa-sync-alt"></i> Refresh
+                  <i class="fas fa-sync-alt"></i> 刷新
                 </button>
                 <button class="btn btn-sm btn-danger" id="clear-tasks-btn">
-                  <i class="fas fa-trash"></i> Clear All
+                  <i class="fas fa-trash"></i> 清空全部
                 </button>
               </div>
             </div>
             <div class="card-body">
               <div class="filter-bar">
-                <button class="filter-btn active" data-filter="all">All</button>
-                <button class="filter-btn" data-filter="downloading">Downloading</button>
-                <button class="filter-btn" data-filter="completed">Completed</button>
-                <button class="filter-btn" data-filter="failed">Failed</button>
+                <button class="filter-btn active" data-filter="all">全部</button>
+                <button class="filter-btn" data-filter="downloading">下载中</button>
+                <button class="filter-btn" data-filter="completed">已完成</button>
+                <button class="filter-btn" data-filter="failed">失败</button>
               </div>
               <div id="download-tasks" class="task-list">
                 <div class="loading">
                   <div class="spinner"></div>
-                  <p>Loading tasks...</p>
+                  <p>加载中...</p>
                 </div>
               </div>
             </div>
@@ -223,12 +223,12 @@
             <div class="card-header">
               <div class="breadcrumb" id="file-breadcrumb">
                 <span class="crumb active" data-cid="0">
-                  <i class="fas fa-home"></i> Root
+                  <i class="fas fa-home"></i> 根目录
                 </span>
               </div>
               <div class="header-actions">
                 <button class="btn btn-sm btn-primary" id="new-folder-btn">
-                  <i class="fas fa-folder-plus"></i> New Folder
+                  <i class="fas fa-folder-plus"></i> 新建文件夹
                 </button>
                 <button class="btn btn-sm btn-secondary" id="refresh-files-btn">
                   <i class="fas fa-sync-alt"></i>
@@ -238,12 +238,12 @@
             <div class="card-body">
               <div class="search-bar">
                 <i class="fas fa-search"></i>
-                <input type="text" id="file-search" placeholder="Search files...">
+                <input type="text" id="file-search" placeholder="搜索文件...">
               </div>
               <div id="file-list" class="file-grid">
                 <div class="loading">
                   <div class="spinner"></div>
-                  <p>Loading files...</p>
+                  <p>加载中...</p>
                 </div>
               </div>
             </div>
@@ -254,16 +254,16 @@
         <section id="page-settings" class="page">
           <div class="card">
             <div class="card-header">
-              <h2>Server Connection</h2>
+              <h2>服务器连接</h2>
             </div>
             <div class="card-body">
               <div class="form-group">
-                <label>Backend Server URL</label>
+                <label>后端服务器地址</label>
                 <div class="input-group">
                   <input type="text" id="server-url" placeholder="http://localhost:11580">
-                  <button class="btn btn-secondary" id="test-connection-btn">Test</button>
+                  <button class="btn btn-secondary" id="test-connection-btn">测试连接</button>
                 </div>
-                <small class="form-help">URL of your 115 Local NAT Manager backend server</small>
+                <small class="form-help">115 本地管理服务的地址</small>
               </div>
               <div id="connection-result" class="alert" style="display:none"></div>
             </div>
@@ -271,21 +271,21 @@
 
           <div class="card">
             <div class="card-header">
-              <h2>Authentication</h2>
+              <h2>身份验证</h2>
             </div>
             <div class="card-body">
               <div class="form-group">
-                <label>Refresh Token</label>
+                <label>刷新令牌 (Refresh Token)</label>
                 <div class="input-group">
-                  <input type="password" id="refresh-token" placeholder="Enter your 115 refresh token">
+                  <input type="password" id="refresh-token" placeholder="输入您的 115 刷新令牌">
                   <button class="btn btn-icon" id="toggle-token-visibility">
                     <i class="fas fa-eye"></i>
                   </button>
                 </div>
-                <small class="form-help">Get this from 115 open platform</small>
+                <small class="form-help">从 115 开放平台获取</small>
               </div>
               <button class="btn btn-primary" id="save-token-btn">
-                <i class="fas fa-save"></i> Save Token
+                <i class="fas fa-save"></i> 保存令牌
               </button>
               <div id="token-status" class="alert" style="display:none"></div>
             </div>
@@ -293,27 +293,27 @@
 
           <div class="card">
             <div class="card-header">
-              <h2>Download Settings</h2>
+              <h2>下载设置</h2>
             </div>
             <div class="card-body">
               <div class="form-group">
-                <label>Download Directory</label>
-                <input type="text" id="download-dir" placeholder="/Users/you/Downloads/115cloud">
-                <small class="form-help">Local directory where completed files will be downloaded</small>
+                <label>下载目录</label>
+                <input type="text" id="download-dir" placeholder="/Users/用户名/Downloads/115cloud">
+                <small class="form-help">已完成文件的本地保存目录</small>
               </div>
               <div class="form-group">
-                <label>Monitor Interval (seconds)</label>
+                <label>监控间隔（秒）</label>
                 <input type="number" id="monitor-interval" value="30" min="10" max="300">
-                <small class="form-help">How often to check for completed downloads</small>
+                <small class="form-help">检查已完成下载的频率</small>
               </div>
               <div class="form-group">
                 <label class="checkbox-label">
                   <input type="checkbox" id="auto-monitor" checked>
-                  <span>Auto-start monitor on launch</span>
+                  <span>启动时自动开始监控</span>
                 </label>
               </div>
               <button class="btn btn-primary" id="save-config-btn">
-                <i class="fas fa-save"></i> Save Configuration
+                <i class="fas fa-save"></i> 保存配置
               </button>
               <div id="config-status" class="alert" style="display:none"></div>
             </div>
@@ -321,18 +321,18 @@
 
           <div class="card">
             <div class="card-header">
-              <h2>About</h2>
+              <h2>关于</h2>
             </div>
             <div class="card-body">
               <div class="about-info">
-                <p><strong>115 Cloud Manager</strong> v1.1.0</p>
-                <p>Local service + Chrome extension for managing 115 cloud downloads</p>
+                <p><strong>115 云盘管理器</strong> v1.2.0</p>
+                <p>本地服务 + Chrome 扩展，管理 115 云盘下载</p>
                 <div class="about-links">
                   <a href="https://github.com/ddc-111/115LocalNatManager" target="_blank">
                     <i class="fab fa-github"></i> GitHub
                   </a>
                   <a href="https://github.com/ddc-111/115LocalNatManager/releases" target="_blank">
-                    <i class="fas fa-download"></i> Downloads
+                    <i class="fas fa-download"></i> 下载
                   </a>
                 </div>
               </div>
@@ -348,7 +348,7 @@
   <div class="modal" id="folder-modal">
     <div class="modal-content">
       <div class="modal-header">
-        <h3>Select Folder</h3>
+        <h3>选择文件夹</h3>
         <button class="btn btn-icon modal-close">&times;</button>
       </div>
       <div class="modal-body">
@@ -359,8 +359,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary modal-close">Cancel</button>
-        <button class="btn btn-primary" id="confirm-folder-btn">Select</button>
+        <button class="btn btn-secondary modal-close">取消</button>
+        <button class="btn btn-primary" id="confirm-folder-btn">确定</button>
       </div>
     </div>
   </div>
