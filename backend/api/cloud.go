@@ -16,7 +16,7 @@ func (c *Client) AddDownloadTask(urls string, pathID string) (map[string]interfa
 	if err != nil {
 		return nil, err
 	}
-	if state, ok := result["state"].(bool); !ok || !state {
+	if !parseState(result["state"]) {
 		return nil, fmt.Errorf("add download task failed: %v", result["message"])
 	}
 	return result, nil
@@ -32,7 +32,7 @@ func (c *Client) GetDownloadTaskList(page int) (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	if state, ok := result["state"].(bool); !ok || !state {
+	if !parseState(result["state"]) {
 		return nil, fmt.Errorf("get task list failed: %v", result["message"])
 	}
 	return result, nil
@@ -51,7 +51,7 @@ func (c *Client) DeleteDownloadTask(infoHash string, delSource bool) (map[string
 	if err != nil {
 		return nil, err
 	}
-	if state, ok := result["state"].(bool); !ok || !state {
+	if !parseState(result["state"]) {
 		return nil, fmt.Errorf("delete task failed: %v", result["message"])
 	}
 	return result, nil
@@ -65,7 +65,7 @@ func (c *Client) ClearDownloadTasks(flag int) (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	if state, ok := result["state"].(bool); !ok || !state {
+	if !parseState(result["state"]) {
 		return nil, fmt.Errorf("clear tasks failed: %v", result["message"])
 	}
 	return result, nil
@@ -76,7 +76,7 @@ func (c *Client) GetDownloadQuota() (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	if state, ok := result["state"].(bool); !ok || !state {
+	if !parseState(result["state"]) {
 		return nil, fmt.Errorf("get quota failed: %v", result["message"])
 	}
 	return result, nil
@@ -91,7 +91,7 @@ func (c *Client) ParseTorrent(sha1, pickCode string) (map[string]interface{}, er
 	if err != nil {
 		return nil, err
 	}
-	if state, ok := result["state"].(bool); !ok || !state {
+	if !parseState(result["state"]) {
 		return nil, fmt.Errorf("parse torrent failed: %v", result["message"])
 	}
 	return result, nil

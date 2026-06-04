@@ -10,7 +10,7 @@ func (c *Client) GetUserInfo() (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	if state, ok := result["state"].(bool); !ok || !state {
+	if !parseState(result["state"]) {
 		return nil, fmt.Errorf("get user info failed: %v", result["message"])
 	}
 	return result, nil
@@ -28,7 +28,7 @@ func (c *Client) GetFileList(cid string, limit, offset int) (map[string]interfac
 	if err != nil {
 		return nil, err
 	}
-	if state, ok := result["state"].(bool); !ok || !state {
+	if !parseState(result["state"]) {
 		return nil, fmt.Errorf("get file list failed: %v", result["message"])
 	}
 	return result, nil
@@ -42,7 +42,7 @@ func (c *Client) GetFileInfo(fileID string) (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	if state, ok := result["state"].(bool); !ok || !state {
+	if !parseState(result["state"]) {
 		return nil, fmt.Errorf("get file info failed: %v", result["message"])
 	}
 	return result, nil
@@ -58,7 +58,7 @@ func (c *Client) SearchFiles(keyword string, limit, offset int) (map[string]inte
 	if err != nil {
 		return nil, err
 	}
-	if state, ok := result["state"].(bool); !ok || !state {
+	if !parseState(result["state"]) {
 		return nil, fmt.Errorf("search files failed: %v", result["message"])
 	}
 	return result, nil
@@ -73,7 +73,7 @@ func (c *Client) CreateFolder(pid, name string) (map[string]interface{}, error) 
 	if err != nil {
 		return nil, err
 	}
-	if state, ok := result["state"].(bool); !ok || !state {
+	if !parseState(result["state"]) {
 		return nil, fmt.Errorf("create folder failed: %v", result["message"])
 	}
 	return result, nil
@@ -87,7 +87,7 @@ func (c *Client) DeleteFiles(fileIDs string) (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	if state, ok := result["state"].(bool); !ok || !state {
+	if !parseState(result["state"]) {
 		return nil, fmt.Errorf("delete files failed: %v", result["message"])
 	}
 	return result, nil
@@ -102,7 +102,7 @@ func (c *Client) RenameFile(fileID, newName string) (map[string]interface{}, err
 	if err != nil {
 		return nil, err
 	}
-	if state, ok := result["state"].(bool); !ok || !state {
+	if !parseState(result["state"]) {
 		return nil, fmt.Errorf("rename file failed: %v", result["message"])
 	}
 	return result, nil
@@ -117,7 +117,7 @@ func (c *Client) MoveFiles(fileIDs, toCID string) (map[string]interface{}, error
 	if err != nil {
 		return nil, err
 	}
-	if state, ok := result["state"].(bool); !ok || !state {
+	if !parseState(result["state"]) {
 		return nil, fmt.Errorf("move files failed: %v", result["message"])
 	}
 	return result, nil
@@ -131,7 +131,7 @@ func (c *Client) GetDownloadURL(pickCode string) (map[string]interface{}, error)
 	if err != nil {
 		return nil, err
 	}
-	if state, ok := result["state"].(bool); !ok || !state {
+	if !parseState(result["state"]) {
 		return nil, fmt.Errorf("get download url failed: %v", result["message"])
 	}
 	return result, nil

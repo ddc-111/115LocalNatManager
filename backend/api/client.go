@@ -42,6 +42,19 @@ func (c *Client) getAccessToken() (string, error) {
 	return token.AccessToken, nil
 }
 
+func parseState(state interface{}) bool {
+	switch v := state.(type) {
+	case bool:
+		return v
+	case float64:
+		return v == 1
+	case int:
+		return v == 1
+	default:
+		return false
+	}
+}
+
 func (c *Client) refreshAccessToken() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -66,28 +79,32 @@ func (c *Client) refreshAccessToken() error {
 	}
 	defer resp.Body.Close()
 
-	var result struct {
-		State   bool   `json:"state"`
-		Code    int    `json:"code"`
-		Message string `json:"message"`
-		Data    struct {
-			AccessToken  string `json:"access_token"`
-			RefreshToken string `json:"refresh_token"`
-			ExpiresIn    int    `json:"expires_in"`
-		} `json:"data"`
-	}
-
+	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return err
 	}
 
-	if !result.State {
-		return fmt.Errorf("refresh failed: %s", result.Message)
+	if !parseState(result["state"]) {
+		msg, _ := result["message"].(string)
+		return fmt.Errorf("refresh failed: %s", msg)
 	}
 
-	c.config.SetAccessToken(result.Data.AccessToken, result.Data.ExpiresIn)
-	if result.Data.RefreshToken != "" {
-		c.config.SetRefreshToken(result.Data.RefreshToken)
+	dataMap, _ := result["data"].(map[string]interface{})
+	if dataMap == nil {
+		return fmt.Errorf("invalid response data")
+	}
+
+	accessToken, _ := dataMap["access_token"].(string)
+	refreshToken, _ := dataMap["refresh_token"].(string)
+	expiresIn, _ := dataMap["expires_in"].(float64)
+
+	if accessToken == "" {
+		return fmt.Errorf("no access_token in response")
+	}
+
+	c.config.SetAccessToken(accessToken, int(expiresIn))
+	if refreshToken != "" {
+		c.config.SetRefreshToken(refreshToken)
 	}
 	c.config.SaveToken()
 	return nil
