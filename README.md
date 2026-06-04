@@ -16,13 +16,13 @@ A local service + Chrome extension for managing 115 cloud downloads with automat
 ### macOS / Linux
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ddc-111/115LocalNatManager/main/scripts/install-mac.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ddc-111/115LocalNatManager/master/scripts/install-mac.sh | bash
 ```
 
 ### Windows (PowerShell as Administrator)
 
 ```powershell
-irm https://raw.githubusercontent.com/ddc-111/115LocalNatManager/main/scripts/install-windows.ps1 | iex
+irm https://raw.githubusercontent.com/ddc-111/115LocalNatManager/master/scripts/install-windows.ps1 | iex
 ```
 
 ### Manual Installation
