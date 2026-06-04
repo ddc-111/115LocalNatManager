@@ -1,0 +1,34 @@
+# Backend
+backend/*.exe
+backend/*.exe~
+backend/*.dll
+backend/*.so
+backend/*.dylib
+backend/115manager
+backend/dist/
+
+# Data
+.115manager/
+*.json
+!extension/**/manifest.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Node
+node_modules/
+
+# Build
+dist/
+build/

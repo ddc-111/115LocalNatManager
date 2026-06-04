@@ -1,0 +1,101 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+        exclude:
+          - goos: windows
+            goarch: arm64
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+      
+      - name: Build
+        working-directory: ./backend
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          if [ "$GOOS" = "windows" ]; then
+            go build -o ../dist/115manager-${{ matrix.goos }}-${{ matrix.goarch }}.exe -ldflags="-s -w" .
+          else
+            go build -o ../dist/115manager-${{ matrix.goos }}-${{ matrix.goarch }} -ldflags="-s -w" .
+          fi
+      
+      - name: Package (Unix)
+        if: matrix.goos != 'windows'
+        run: |
+          cd dist
+          tar -czf 115manager-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz 115manager-${{ matrix.goos }}-${{ matrix.goarch }}
+      
+      - name: Package (Windows)
+        if: matrix.goos == 'windows'
+        run: |
+          cd dist
+          zip 115manager-${{ matrix.goos }}-${{ matrix.goarch }}.zip 115manager-${{ matrix.goos }}-${{ matrix.goarch }}.exe
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: 115manager-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/115manager-*
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/**/*.tar.gz
+            artifacts/**/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-extension:
+    name: Publish Chrome Extension
+    needs: release
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Package extension
+        run: |
+          cd extension
+          zip -r ../115cloud-extension.zip .
+      
+      - name: Upload extension artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chrome-extension
+          path: 115cloud-extension.zip

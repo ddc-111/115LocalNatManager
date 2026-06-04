@@ -1,0 +1,85 @@
+package handler
+
+import (
+	"encoding/json"
+	"net/http"
+
+	"115localnatmanager/api"
+	"115localnatmanager/config"
+	"115localnatmanager/model"
+	"115localnatmanager/service"
+
+	"github.com/gorilla/mux"
+)
+
+func NewRouter(client *api.Client, cfg *config.Manager, monitor *service.DownloadMonitor) *mux.Router {
+	r := mux.NewRouter()
+	r.Use(CORSMiddleware)
+
+	tokenHandler := NewTokenHandler(cfg)
+	fileHandler := NewFileHandler(client)
+	downloadHandler := NewDownloadHandler(client, monitor)
+
+	api := r.PathPrefix("/api").Subrouter()
+
+	api.HandleFunc("/token", tokenHandler.SetToken).Methods("POST", "OPTIONS")
+	api.HandleFunc("/token", tokenHandler.GetTokenStatus).Methods("GET", "OPTIONS")
+
+	api.HandleFunc("/user", func(w http.ResponseWriter, r *http.Request) {
+		result, err := client.GetUserInfo()
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, model.APIResponse{
+				State:   false,
+				Message: err.Error(),
+			})
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
+	}).Methods("GET", "OPTIONS")
+
+	api.HandleFunc("/files", fileHandler.GetFileList).Methods("GET", "OPTIONS")
+	api.HandleFunc("/files/{id}", fileHandler.GetFileInfo).Methods("GET", "OPTIONS")
+	api.HandleFunc("/files/{id}", fileHandler.RenameFile).Methods("PUT", "OPTIONS")
+	api.HandleFunc("/files/search", fileHandler.SearchFiles).Methods("GET", "OPTIONS")
+	api.HandleFunc("/files/delete", fileHandler.DeleteFiles).Methods("POST", "OPTIONS")
+	api.HandleFunc("/files/move", fileHandler.MoveFiles).Methods("POST", "OPTIONS")
+	api.HandleFunc("/folders", fileHandler.CreateFolder).Methods("POST", "OPTIONS")
+
+	api.HandleFunc("/download", downloadHandler.AddTask).Methods("POST", "OPTIONS")
+	api.HandleFunc("/download/tasks", downloadHandler.GetTaskList).Methods("GET", "OPTIONS")
+	api.HandleFunc("/download/tasks/{hash}", downloadHandler.DeleteTask).Methods("DELETE", "OPTIONS")
+	api.HandleFunc("/download/clear", downloadHandler.ClearTasks).Methods("POST", "OPTIONS")
+	api.HandleFunc("/download/quota", downloadHandler.GetQuota).Methods("GET", "OPTIONS")
+	api.HandleFunc("/download/monitor", downloadHandler.GetMonitorStatus).Methods("GET", "OPTIONS")
+	api.HandleFunc("/download/monitor", downloadHandler.ToggleMonitor).Methods("POST", "OPTIONS")
+
+	api.HandleFunc("/config", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, model.APIResponse{
+			State: true,
+			Data:  cfg.GetConfig(),
+		})
+	}).Methods("GET", "OPTIONS")
+
+	api.HandleFunc("/config", func(w http.ResponseWriter, r *http.Request) {
+		var req model.ConfigUpdateRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, model.APIResponse{
+				State:   false,
+				Message: "Invalid request body",
+			})
+			return
+		}
+		cfg.UpdateConfig(req)
+		cfg.SaveConfig()
+		writeJSON(w, http.StatusOK, model.APIResponse{
+			State: true,
+			Data:  cfg.GetConfig(),
+		})
+	}).Methods("PUT", "OPTIONS")
+
+	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	}).Methods("GET")
+
+	return r
+}
