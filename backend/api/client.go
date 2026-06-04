@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"115localnatmanager/config"
-	"115localnatmanager/model"
 )
 
 const (
