@@ -55,6 +55,18 @@ func parseState(state interface{}) bool {
 	}
 }
 
+func parseAPIError(result map[string]interface{}) error {
+	code, _ := result["code"].(float64)
+	msg, _ := result["message"].(string)
+	errMsg, _ := result["error"].(string)
+	
+	return &APIError{
+		Code:    int(code),
+		Message: msg,
+		Error:   errMsg,
+	}
+}
+
 func (c *Client) refreshAccessToken() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -85,8 +97,16 @@ func (c *Client) refreshAccessToken() error {
 	}
 
 	if !parseState(result["state"]) {
+		code, _ := result["code"].(float64)
 		msg, _ := result["message"].(string)
-		return fmt.Errorf("refresh failed: %s", msg)
+		errMsg, _ := result["error"].(string)
+		
+		apiErr := &APIError{
+			Code:    int(code),
+			Message: msg,
+			Error:   errMsg,
+		}
+		return apiErr
 	}
 
 	dataMap, _ := result["data"].(map[string]interface{})

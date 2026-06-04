@@ -11,7 +11,7 @@ func (c *Client) GetUserInfo() (map[string]interface{}, error) {
 		return nil, err
 	}
 	if !parseState(result["state"]) {
-		return nil, fmt.Errorf("get user info failed: %v", result["message"])
+		return nil, parseAPIError(result)
 	}
 	return result, nil
 }
@@ -21,15 +21,15 @@ func (c *Client) GetFileList(cid string, limit, offset int) (map[string]interfac
 	if cid != "" {
 		params.Set("cid", cid)
 	}
-	params.Set("limit", fmt.Sprintf("%d", limit))
-	params.Set("offset", fmt.Sprintf("%d", offset))
+	params.Set("limit", limitToStr(limit))
+	params.Set("offset", limitToStr(offset))
 
 	result, err := c.doQueryRequest("GET", BaseURL+"/open/ufile/files", params)
 	if err != nil {
 		return nil, err
 	}
 	if !parseState(result["state"]) {
-		return nil, fmt.Errorf("get file list failed: %v", result["message"])
+		return nil, parseAPIError(result)
 	}
 	return result, nil
 }
@@ -43,7 +43,7 @@ func (c *Client) GetFileInfo(fileID string) (map[string]interface{}, error) {
 		return nil, err
 	}
 	if !parseState(result["state"]) {
-		return nil, fmt.Errorf("get file info failed: %v", result["message"])
+		return nil, parseAPIError(result)
 	}
 	return result, nil
 }
@@ -51,15 +51,15 @@ func (c *Client) GetFileInfo(fileID string) (map[string]interface{}, error) {
 func (c *Client) SearchFiles(keyword string, limit, offset int) (map[string]interface{}, error) {
 	params := url.Values{}
 	params.Set("search_value", keyword)
-	params.Set("limit", fmt.Sprintf("%d", limit))
-	params.Set("offset", fmt.Sprintf("%d", offset))
+	params.Set("limit", limitToStr(limit))
+	params.Set("offset", limitToStr(offset))
 
 	result, err := c.doQueryRequest("GET", BaseURL+"/open/ufile/search", params)
 	if err != nil {
 		return nil, err
 	}
 	if !parseState(result["state"]) {
-		return nil, fmt.Errorf("search files failed: %v", result["message"])
+		return nil, parseAPIError(result)
 	}
 	return result, nil
 }
@@ -74,7 +74,7 @@ func (c *Client) CreateFolder(pid, name string) (map[string]interface{}, error) 
 		return nil, err
 	}
 	if !parseState(result["state"]) {
-		return nil, fmt.Errorf("create folder failed: %v", result["message"])
+		return nil, parseAPIError(result)
 	}
 	return result, nil
 }
@@ -88,7 +88,7 @@ func (c *Client) DeleteFiles(fileIDs string) (map[string]interface{}, error) {
 		return nil, err
 	}
 	if !parseState(result["state"]) {
-		return nil, fmt.Errorf("delete files failed: %v", result["message"])
+		return nil, parseAPIError(result)
 	}
 	return result, nil
 }
@@ -103,7 +103,7 @@ func (c *Client) RenameFile(fileID, newName string) (map[string]interface{}, err
 		return nil, err
 	}
 	if !parseState(result["state"]) {
-		return nil, fmt.Errorf("rename file failed: %v", result["message"])
+		return nil, parseAPIError(result)
 	}
 	return result, nil
 }
@@ -118,7 +118,7 @@ func (c *Client) MoveFiles(fileIDs, toCID string) (map[string]interface{}, error
 		return nil, err
 	}
 	if !parseState(result["state"]) {
-		return nil, fmt.Errorf("move files failed: %v", result["message"])
+		return nil, parseAPIError(result)
 	}
 	return result, nil
 }
@@ -132,7 +132,11 @@ func (c *Client) GetDownloadURL(pickCode string) (map[string]interface{}, error)
 		return nil, err
 	}
 	if !parseState(result["state"]) {
-		return nil, fmt.Errorf("get download url failed: %v", result["message"])
+		return nil, parseAPIError(result)
 	}
 	return result, nil
+}
+
+func limitToStr(n int) string {
+	return fmt.Sprintf("%d", n)
 }
