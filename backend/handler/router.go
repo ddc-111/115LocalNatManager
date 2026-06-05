@@ -19,6 +19,7 @@ func NewRouter(client *api.Client, cfg *config.Manager, monitor *service.Downloa
 	tokenHandler := NewTokenHandler(cfg)
 	fileHandler := NewFileHandler(client)
 	downloadHandler := NewDownloadHandler(client, monitor)
+	systemHandler := NewSystemHandler(cfg)
 
 	api := r.PathPrefix("/api").Subrouter()
 
@@ -76,6 +77,11 @@ func NewRouter(client *api.Client, cfg *config.Manager, monitor *service.Downloa
 			Data:  cfg.GetConfig(),
 		})
 	}).Methods("PUT", "OPTIONS")
+
+	api.HandleFunc("/system/drives", systemHandler.GetDrives).Methods("GET", "OPTIONS")
+	api.HandleFunc("/system/dirs", systemHandler.ListDirectory).Methods("GET", "OPTIONS")
+	api.HandleFunc("/system/dirs/create", systemHandler.CreateDirectory).Methods("POST", "OPTIONS")
+	api.HandleFunc("/system/dirs/test", systemHandler.TestDirectory).Methods("GET", "OPTIONS")
 
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})

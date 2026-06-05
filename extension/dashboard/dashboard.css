@@ -1029,6 +1029,120 @@ body {
   color: var(--danger);
 }
 
+/* Directory Browser */
+.modal-lg {
+  max-width: 700px;
+}
+
+.dir-browser {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.dir-current {
+  padding: 10px 16px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  font-family: monospace;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.dir-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.dir-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.dir-item:last-child {
+  border-bottom: none;
+}
+
+.dir-item:hover {
+  background: var(--bg);
+}
+
+.dir-item.selected {
+  background: var(--primary-light);
+}
+
+.dir-item-icon {
+  width: 24px;
+  text-align: center;
+  color: var(--warning);
+}
+
+.dir-item-name {
+  flex: 1;
+  font-size: 14px;
+}
+
+.dir-item-size {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.dir-drives {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.dir-drive-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-white);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.dir-drive-btn:hover {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.dir-parent-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  color: var(--primary);
+  font-size: 13px;
+  transition: background 0.2s;
+}
+
+.dir-parent-btn:hover {
+  background: var(--bg);
+}
+
+.file-item-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.file-item.selected {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
 /* Header Actions */
 .header-actions {
   display: flex;

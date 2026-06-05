@@ -101,6 +101,9 @@ func (m *Manager) UpdateConfig(req model.ConfigUpdateRequest) {
 	if req.MonitorInterval != nil {
 		m.config.MonitorInterval = *req.MonitorInterval
 	}
+	if req.DefaultSavePath != "" {
+		m.config.DefaultSavePath = req.DefaultSavePath
+	}
 }
 
 func (m *Manager) GetToken() model.TokenData {

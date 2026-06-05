@@ -2,6 +2,9 @@ const DEFAULT_API_BASE = 'http://localhost:11580';
 let apiBase = DEFAULT_API_BASE;
 let currentCID = '0';
 let selectedFolder = null;
+let selectedFiles = new Set();
+let currentDirBrowserCallback = null;
+let currentDirPath = '/';
 
 document.addEventListener('DOMContentLoaded', async () => {
   await loadSettings();
@@ -82,6 +85,27 @@ function initEventListeners() {
   document.getElementById('new-folder-btn').addEventListener('click', createNewFolder);
   document.getElementById('refresh-files-btn').addEventListener('click', () => loadFiles(currentCID));
   document.getElementById('file-search').addEventListener('keyup', debounce(searchFiles, 300));
+  
+  // 文件选择和操作按钮
+  document.getElementById('select-all-btn').addEventListener('click', selectAllFiles);
+  document.getElementById('download-selected-btn').addEventListener('click', downloadSelectedFiles);
+  document.getElementById('delete-selected-btn').addEventListener('click', deleteSelectedFiles);
+  
+  // 目录浏览器按钮
+  document.getElementById('browse-download-dir-btn').addEventListener('click', () => {
+    openDirectoryBrowser('选择下载目录', (path) => {
+      document.getElementById('download-dir').value = path;
+    });
+  });
+  
+  document.getElementById('browse-cloud-folder-btn').addEventListener('click', () => {
+    openCloudFolderBrowser((folder) => {
+      document.getElementById('default-save-path').value = folder.name;
+      document.getElementById('default-save-path').dataset.folderId = folder.id;
+    });
+  });
+  
+  document.getElementById('confirm-dir-btn').addEventListener('click', confirmDirectorySelection);
   
   document.getElementById('test-connection-btn').addEventListener('click', testConnection);
   document.getElementById('save-token-btn').addEventListener('click', saveToken);
@@ -385,23 +409,44 @@ function renderFiles(files) {
     const isFolder = file.fc === '0';
     const icon = isFolder ? 'folder' : getFileIcon(file.ico);
     const size = isFolder ? '' : formatSize(file.fs);
+    const isSelected = selectedFiles.has(file.fid);
     
     return `
-      <div class="file-item" data-id="${file.fid}" data-is-folder="${isFolder}" data-name="${escapeHtml(file.fn)}">
+      <div class="file-item ${isSelected ? 'selected' : ''}" data-id="${file.fid}" data-is-folder="${isFolder}" data-name="${escapeHtml(file.fn)}">
+        <input type="checkbox" class="file-item-checkbox" data-id="${file.fid}" ${isSelected ? 'checked' : ''}>
         <div class="file-icon ${isFolder ? 'folder' : 'file'}">
           <i class="fas fa-${icon}"></i>
         </div>
         <div class="file-name">${escapeHtml(file.fn)}</div>
         <div class="file-size">${size}</div>
+        <div class="file-actions">
+          <button class="btn btn-icon btn-sm rename-btn" data-id="${file.fid}" title="重命名">
+            <i class="fas fa-edit"></i>
+          </button>
+        </div>
       </div>
     `;
   }).join('');
   
+  container.querySelectorAll('.file-item-checkbox').forEach(cb => {
+    cb.addEventListener('change', (e) => {
+      e.stopPropagation();
+      toggleFileSelection(cb.dataset.id);
+      cb.closest('.file-item').classList.toggle('selected', cb.checked);
+    });
+  });
+  
+  container.querySelectorAll('.rename-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      renameFile(btn.dataset.id);
+    });
+  });
+  
   container.querySelectorAll('.file-item').forEach(item => {
     item.addEventListener('click', (e) => {
-      if (e.ctrlKey || e.metaKey) {
-        item.classList.toggle('selected');
-      } else if (item.dataset.isFolder === 'true') {
+      if (e.target.classList.contains('file-item-checkbox') || e.target.classList.contains('rename-btn')) return;
+      if (item.dataset.isFolder === 'true') {
         loadFiles(item.dataset.id);
         updateBreadcrumb(item.dataset.id, item.dataset.name);
       }
@@ -717,6 +762,7 @@ async function saveConfig() {
   const resultEl = document.getElementById('config-status');
   const config = {
     download_dir: document.getElementById('download-dir').value,
+    default_save_path: document.getElementById('default-save-path').dataset.folderId || '',
     monitor_interval: parseInt(document.getElementById('monitor-interval').value)
   };
   
@@ -727,7 +773,7 @@ async function saveConfig() {
       resultEl.textContent = '配置已保存！';
     } else {
       resultEl.className = 'alert alert-error';
-      resultEl.textContent = result.message || '失败 to save config';
+      resultEl.textContent = result.message || '保存配置失败';
     }
   } catch (error) {
     resultEl.className = 'alert alert-error';
@@ -833,4 +879,223 @@ function debounce(func, wait) {
     clearTimeout(timeout);
     timeout = setTimeout(() => func.apply(this, args), wait);
   };
+}
+
+// 文件选择功能
+function toggleFileSelection(fileId) {
+  if (selectedFiles.has(fileId)) {
+    selectedFiles.delete(fileId);
+  } else {
+    selectedFiles.add(fileId);
+  }
+  updateSelectionUI();
+}
+
+function selectAllFiles() {
+  const checkboxes = document.querySelectorAll('.file-item-checkbox');
+  const allSelected = checkboxes.length === selectedFiles.size;
+  
+  checkboxes.forEach(cb => {
+    const fileId = cb.dataset.id;
+    if (allSelected) {
+      selectedFiles.delete(fileId);
+      cb.checked = false;
+      cb.closest('.file-item').classList.remove('selected');
+    } else {
+      selectedFiles.add(fileId);
+      cb.checked = true;
+      cb.closest('.file-item').classList.add('selected');
+    }
+  });
+  
+  updateSelectionUI();
+}
+
+function updateSelectionUI() {
+  const count = selectedFiles.size;
+  document.getElementById('download-selected-btn').disabled = count === 0;
+  document.getElementById('delete-selected-btn').disabled = count === 0;
+  document.getElementById('select-all-btn').innerHTML = count > 0 
+    ? `<i class="fas fa-check-square"></i> ${count}` 
+    : '<i class="fas fa-square"></i>';
+}
+
+async function downloadSelectedFiles() {
+  if (selectedFiles.size === 0) return;
+  
+  const config = await apiGet('/api/config');
+  const downloadDir = config.data?.download_dir;
+  
+  if (!downloadDir) {
+    showToast('请先在设置中配置本地下载目录', 'error');
+    showPage('settings');
+    return;
+  }
+  
+  const fileIds = Array.from(selectedFiles);
+  let successCount = 0;
+  
+  for (const fileId of fileIds) {
+    try {
+      const fileInfo = await apiGet(`/api/files/${fileId}`);
+      if (fileInfo.state && fileInfo.data?.pick_code) {
+        const dlResult = await apiPost('/api/files/download', { pick_code: fileInfo.data.pick_code });
+        if (dlResult.state) {
+          successCount++;
+        }
+      }
+    } catch (error) {
+      console.error('Download failed:', error);
+    }
+  }
+  
+  showToast(`已开始下载 ${successCount} 个文件`, 'success');
+  selectedFiles.clear();
+  updateSelectionUI();
+}
+
+async function deleteSelectedFiles() {
+  if (selectedFiles.size === 0) return;
+  
+  if (!confirm(`确定删除选中的 ${selectedFiles.size} 个文件？`)) return;
+  
+  const fileIds = Array.from(selectedFiles).join(',');
+  try {
+    const result = await apiPost('/api/files/delete', { file_ids: fileIds });
+    if (result.state) {
+      showToast('文件已删除', 'success');
+      selectedFiles.clear();
+      updateSelectionUI();
+      loadFiles(currentCID);
+    }
+  } catch (error) {
+    showToast('删除失败', 'error');
+  }
+}
+
+// 目录浏览器
+async function openDirectoryBrowser(title, callback) {
+  currentDirBrowserCallback = callback;
+  document.getElementById('dir-browser-title').textContent = title;
+  document.getElementById('dir-browser-modal').classList.add('active');
+  
+  try {
+    const result = await apiGet('/api/system/drives');
+    if (result.state && result.data) {
+      const drivesHtml = result.data.map(d => 
+        `<button class="dir-drive-btn" data-path="${escapeHtml(d.path)}">${escapeHtml(d.name)}</button>`
+      ).join('');
+      
+      document.getElementById('dir-list').innerHTML = `
+        <div class="dir-drives">${drivesHtml}</div>
+        <div id="dir-entries"></div>
+      `;
+      
+      document.querySelectorAll('.dir-drive-btn').forEach(btn => {
+        btn.addEventListener('click', () => browseDirectory(btn.dataset.path));
+      });
+    }
+  } catch (error) {
+    document.getElementById('dir-list').innerHTML = '<div class="empty-state">无法加载目录</div>';
+  }
+}
+
+async function browseDirectory(dir) {
+  currentDirPath = dir;
+  document.getElementById('dir-current-path').textContent = dir;
+  
+  try {
+    const result = await apiGet(`/api/system/dirs?dir=${encodeURIComponent(dir)}`);
+    if (result.state && result.data) {
+      const { parent, entries } = result.data;
+      
+      let html = '';
+      if (parent && parent !== dir) {
+        html += `<div class="dir-parent-btn" data-path="${escapeHtml(parent)}">
+          <i class="fas fa-arrow-up"></i> 上级目录
+        </div>`;
+      }
+      
+      if (entries && entries.length > 0) {
+        html += entries.filter(e => e.is_dir).map(entry => `
+          <div class="dir-item" data-path="${escapeHtml(entry.path)}">
+            <div class="dir-item-icon"><i class="fas fa-folder"></i></div>
+            <div class="dir-item-name">${escapeHtml(entry.name)}</div>
+          </div>
+        `).join('');
+      } else {
+        html += '<div class="empty-state" style="padding:20px">此目录为空</div>';
+      }
+      
+      document.getElementById('dir-entries').innerHTML = html;
+      
+      document.querySelectorAll('.dir-parent-btn, .dir-item').forEach(item => {
+        item.addEventListener('click', () => browseDirectory(item.dataset.path));
+      });
+    }
+  } catch (error) {
+    document.getElementById('dir-entries').innerHTML = '<div class="empty-state">无法读取目录</div>';
+  }
+}
+
+function confirmDirectorySelection() {
+  if (currentDirBrowserCallback) {
+    currentDirBrowserCallback(currentDirPath);
+  }
+  document.getElementById('dir-browser-modal').classList.remove('active');
+}
+
+// 云文件夹选择器
+async function openCloudFolderBrowser(callback) {
+  selectedFolder = null;
+  document.getElementById('folder-modal').classList.add('active');
+  
+  const tree = document.getElementById('folder-tree');
+  tree.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  
+  try {
+    const result = await apiGet('/api/files?cid=0&limit=100');
+    if (result.state) {
+      const folders = (result.data || []).filter(f => f.fc === '0');
+      tree.innerHTML = folders.map(folder => `
+        <div class="folder-item" data-id="${folder.fid}" data-name="${escapeHtml(folder.fn)}">
+          <i class="fas fa-folder"></i>
+          <span>${escapeHtml(folder.fn)}</span>
+        </div>
+      `).join('') || '<div class="empty-state"><p>暂无文件夹</p></div>';
+      
+      tree.querySelectorAll('.folder-item').forEach(item => {
+        item.addEventListener('click', () => {
+          tree.querySelectorAll('.folder-item').forEach(i => i.classList.remove('selected'));
+          item.classList.add('selected');
+          selectedFolder = { id: item.dataset.id, name: item.dataset.name };
+        });
+      });
+    }
+  } catch (error) {
+    tree.innerHTML = '<div class="empty-state"><p>加载失败</p></div>';
+  }
+  
+  document.getElementById('confirm-folder-btn').onclick = () => {
+    if (selectedFolder && callback) {
+      callback(selectedFolder);
+    }
+    document.getElementById('folder-modal').classList.remove('active');
+  };
+}
+
+// 重命名文件
+async function renameFile(fileId) {
+  const name = prompt('输入新名称:');
+  if (!name) return;
+  
+  try {
+    const result = await apiPut(`/api/files/${fileId}`, { name });
+    if (result.state) {
+      showToast('重命名成功', 'success');
+      loadFiles(currentCID);
+    }
+  } catch (error) {
+    showToast('重命名失败', 'error');
+  }
 }

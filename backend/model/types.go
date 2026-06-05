@@ -9,10 +9,11 @@ type TokenData struct {
 }
 
 type Config struct {
-	Port           string `json:"port"`
-	DownloadDir    string `json:"download_dir"`
-	MonitorEnabled bool   `json:"monitor_enabled"`
-	MonitorInterval int   `json:"monitor_interval"`
+	Port            string `json:"port"`
+	DownloadDir     string `json:"download_dir"`
+	MonitorEnabled  bool   `json:"monitor_enabled"`
+	MonitorInterval int    `json:"monitor_interval"`
+	DefaultSavePath string `json:"default_save_path"`
 }
 
 type APIResponse struct {
@@ -67,4 +68,5 @@ type ConfigUpdateRequest struct {
 	DownloadDir     string `json:"download_dir,omitempty"`
 	MonitorEnabled  *bool  `json:"monitor_enabled,omitempty"`
 	MonitorInterval *int   `json:"monitor_interval,omitempty"`
+	DefaultSavePath string `json:"default_save_path,omitempty"`
 }
