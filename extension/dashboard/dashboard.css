@@ -1171,6 +1171,23 @@ body {
   background: var(--bg);
 }
 
+/* Info Banner */
+.info-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--info-light);
+  color: var(--info);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.info-banner i {
+  font-size: 16px;
+}
+
 
 /* Header Actions */
 .header-actions {

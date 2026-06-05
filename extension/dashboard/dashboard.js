@@ -67,7 +67,8 @@ function showPage(page) {
   const titles = {
     dashboard: '控制台',
     magnets: '磁力链接',
-    downloads: '下载任务',
+    downloads: '云下载任务',
+    'local-downloads': '服务下载任务',
     files: '云文件管理',
     settings: '设置'
   };

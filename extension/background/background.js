@@ -60,6 +60,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
   
+  if (request.action === 'addDownload') {
+    handleAddDownload(request)
+      .then(sendResponse)
+      .catch(error => sendResponse({ state: false, message: error.message }));
+    return true;
+  }
+  
   if (request.action === 'getServerUrl') {
     chrome.storage.local.get(['serverUrl']).then(settings => {
       sendResponse({ serverUrl: settings.serverUrl || DEFAULT_API_BASE });
@@ -67,6 +74,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 });
+
+async function handleAddDownload(request) {
+  const { url, data } = request;
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  return response.json();
+}
 
 async function handleAPI(request) {
   const settings = await chrome.storage.local.get(['serverUrl']);

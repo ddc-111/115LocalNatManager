@@ -27,6 +27,14 @@
           <i class="fas fa-cloud-download-alt"></i>
           <span>下载任务</span>
         </li>
+        <li data-page="downloads">
+          <i class="fas fa-cloud-download-alt"></i>
+          <span>云下载任务</span>
+        </li>
+        <li data-page="local-downloads">
+          <i class="fas fa-download"></i>
+          <span>服务下载任务</span>
+        </li>
         <li data-page="files">
           <i class="fas fa-cloud"></i>
           <span>云文件管理</span>
@@ -211,6 +219,33 @@
                 <div class="loading">
                   <div class="spinner"></div>
                   <p>加载中...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Local Downloads Page -->
+        <section id="page-local-downloads" class="page">
+          <div class="card">
+            <div class="card-header">
+              <h2>服务下载任务</h2>
+              <div class="header-actions">
+                <button class="btn btn-sm btn-secondary" id="refresh-local-tasks-btn">
+                  <i class="fas fa-sync-alt"></i> 刷新
+                </button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="info-banner">
+                <i class="fas fa-info-circle"></i>
+                <span>此列表显示从115云盘下载到本地服务器的文件进度</span>
+              </div>
+              <div id="local-download-tasks" class="task-list">
+                <div class="empty-state">
+                  <i class="fas fa-download"></i>
+                  <p>暂无本地下载任务</p>
+                  <small>云下载完成后，符合条件的文件会自动下载到本地</small>
                 </div>
               </div>
             </div>

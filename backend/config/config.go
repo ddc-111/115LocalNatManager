@@ -89,23 +89,21 @@ func (m *Manager) GetConfig() model.Config {
 func (m *Manager) UpdateConfig(req model.ConfigUpdateRequest) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	
+	// 始终更新这些字段
+	m.config.DownloadDir = req.DownloadDir
+	m.config.DefaultSavePath = req.DefaultSavePath
+	m.config.DefaultSaveName = req.DefaultSaveName
+	
+	// 只在有值时更新
 	if req.Port != "" {
 		m.config.Port = req.Port
-	}
-	if req.DownloadDir != "" {
-		m.config.DownloadDir = req.DownloadDir
 	}
 	if req.MonitorEnabled != nil {
 		m.config.MonitorEnabled = *req.MonitorEnabled
 	}
 	if req.MonitorInterval != nil {
 		m.config.MonitorInterval = *req.MonitorInterval
-	}
-	if req.DefaultSavePath != "" {
-		m.config.DefaultSavePath = req.DefaultSavePath
-	}
-	if req.DefaultSaveName != "" {
-		m.config.DefaultSaveName = req.DefaultSaveName
 	}
 }
 

@@ -1,5 +1,5 @@
 const MAGNET_REGEX = /magnet:\?xt=urn:[a-zA-Z0-9]+:[a-zA-Z0-9]{32,}/gi;
-let API_BASE = 'http://localhost:11580/api';
+let API_BASE = 'http://localhost:11580';
 
 let detectedMagnets = [];
 
@@ -7,12 +7,19 @@ async function loadApiBase() {
   try {
     const settings = await chrome.storage.local.get(['serverUrl']);
     if (settings.serverUrl) {
-      API_BASE = settings.serverUrl + '/api';
+      API_BASE = settings.serverUrl;
     }
   } catch (e) {}
 }
 
 loadApiBase();
+
+// 监听storage变化
+chrome.storage.onChanged.addListener((changes) => {
+  if (changes.serverUrl) {
+    API_BASE = changes.serverUrl.newValue || 'http://localhost:11580';
+  }
+});
 
 function scanForMagnets() {
   const pageText = document.body.innerText;
@@ -55,13 +62,20 @@ function createMagnetButton(magnetUrl) {
     btn.querySelector('span').textContent = 'Sending...';
 
     try {
-      const response = await fetch(`${API_BASE}/download`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: magnetUrl })
+      // 通过background script发送请求
+      const result = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({
+          action: 'addDownload',
+          url: API_BASE + '/api/download',
+          data: { urls: magnetUrl }
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(response);
+          }
+        });
       });
-
-      const result = await response.json();
       
       if (result.state) {
         btn.querySelector('span').textContent = 'Sent!';
