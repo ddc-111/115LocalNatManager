@@ -672,8 +672,18 @@ async function testConnection() {
   // 自动添加 http:// 前缀
   if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
     url = 'http://' + url;
-    document.getElementById('server-url').value = url;
   }
+  
+  // 如果没有端口号，默认添加 :11580
+  try {
+    const urlObj = new URL(url);
+    if (!urlObj.port && urlObj.hostname) {
+      urlObj.port = '11580';
+      url = urlObj.toString();
+    }
+  } catch (e) {}
+  
+  document.getElementById('server-url').value = url;
   
   try {
     const response = await fetch(`${url}/health`, { signal: AbortSignal.timeout(5000) });
