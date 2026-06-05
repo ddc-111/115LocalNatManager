@@ -54,9 +54,16 @@ function showPage(page) {
   
   if (page === 'downloads') loadTasks();
   if (page === 'files') loadFiles(currentCID);
+  if (page === 'settings') loadTokenInfo();
 }
 
 function initEventListeners() {
+  // 快捷操作按钮
+  document.getElementById('goto-downloads-btn')?.addEventListener('click', () => showPage('downloads'));
+  document.getElementById('goto-magnets-btn')?.addEventListener('click', () => showPage('magnets'));
+  document.getElementById('goto-files-btn')?.addEventListener('click', () => showPage('files'));
+  document.getElementById('goto-settings-btn')?.addEventListener('click', () => showPage('settings'));
+  
   document.getElementById('refresh-btn').addEventListener('click', () => {
     const activePage = document.querySelector('.nav-links li.active')?.dataset.page;
     if (activePage === 'dashboard') loadDashboard();
@@ -640,6 +647,36 @@ async function testConnection() {
     resultEl.textContent = '连接失败，请检查服务器是否运行';
   }
   resultEl.style.display = 'block';
+}
+
+async function loadTokenInfo() {
+  try {
+    const result = await apiGet('/api/token');
+    if (result.state && result.data) {
+      const data = result.data;
+      const infoEl = document.getElementById('token-info');
+      infoEl.style.display = 'block';
+      
+      document.getElementById('token-status-text').textContent = data.is_expired ? '已过期' : '有效';
+      document.getElementById('token-status-text').className = data.is_expired ? 'info-value danger' : 'info-value success';
+      
+      document.getElementById('has-refresh-token').textContent = data.has_refresh_token ? '已配置' : '未配置';
+      document.getElementById('has-refresh-token').className = data.has_refresh_token ? 'info-value success' : 'info-value warning';
+      
+      document.getElementById('has-access-token').textContent = data.has_access_token ? '已配置' : '未配置';
+      document.getElementById('has-access-token').className = data.has_access_token ? 'info-value success' : 'info-value warning';
+      
+      if (data.expires_at && data.expires_at !== '0001-01-01T00:00:00Z') {
+        const expiresDate = new Date(data.expires_at);
+        document.getElementById('token-expires').textContent = expiresDate.toLocaleString('zh-CN');
+        document.getElementById('token-expires').className = data.is_expired ? 'info-value danger' : 'info-value success';
+      } else {
+        document.getElementById('token-expires').textContent = '未知';
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load token info:', error);
+  }
 }
 
 async function saveToken() {

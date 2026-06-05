@@ -989,6 +989,46 @@ body {
   text-decoration: underline;
 }
 
+/* Token Info */
+.token-info {
+  background: var(--bg);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.info-label {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.info-value {
+  color: var(--text);
+}
+
+.info-value.success {
+  color: var(--success);
+}
+
+.info-value.warning {
+  color: var(--warning);
+}
+
+.info-value.danger {
+  color: var(--danger);
+}
+
 /* Header Actions */
 .header-actions {
   display: flex;
