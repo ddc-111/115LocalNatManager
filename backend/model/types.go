@@ -14,6 +14,7 @@ type Config struct {
 	MonitorEnabled  bool   `json:"monitor_enabled"`
 	MonitorInterval int    `json:"monitor_interval"`
 	DefaultSavePath string `json:"default_save_path"`
+	DefaultSaveName string `json:"default_save_name"`
 }
 
 type APIResponse struct {
@@ -69,4 +70,5 @@ type ConfigUpdateRequest struct {
 	MonitorEnabled  *bool  `json:"monitor_enabled,omitempty"`
 	MonitorInterval *int   `json:"monitor_interval,omitempty"`
 	DefaultSavePath string `json:"default_save_path,omitempty"`
+	DefaultSaveName string `json:"default_save_name,omitempty"`
 }

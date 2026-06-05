@@ -36,8 +36,8 @@ async function loadSettings() {
         document.getElementById('download-dir').value = config.download_dir;
       }
       if (config.default_save_path) {
-        document.getElementById('default-save-path').value = config.default_save_path;
         document.getElementById('default-save-path').dataset.folderId = config.default_save_path;
+        document.getElementById('default-save-path').value = config.default_save_name || config.default_save_path;
       }
       if (config.monitor_interval) {
         document.getElementById('monitor-interval').value = config.monitor_interval;
@@ -265,7 +265,10 @@ async function addMagnets() {
   }
   
   try {
-    const result = await apiPost('/api/download', { urls, path_id: selectedFolder?.id || '' });
+    const config = await apiGet('/api/config');
+    const pathId = config.data?.default_save_path || selectedFolder?.id || '';
+    
+    const result = await apiPost('/api/download', { urls, path_id: pathId });
     if (result.state) {
       showToast('任务添加成功！', 'success');
       document.getElementById('magnet-input').value = '';
@@ -728,27 +731,41 @@ async function loadTokenInfo() {
     if (result.state && result.data) {
       const data = result.data;
       const infoEl = document.getElementById('token-info');
-      infoEl.style.display = 'block';
-      
-      document.getElementById('token-status-text').textContent = data.is_expired ? '已过期' : '有效';
-      document.getElementById('token-status-text').className = data.is_expired ? 'info-value danger' : 'info-value success';
-      
-      document.getElementById('has-refresh-token').textContent = data.has_refresh_token ? '已配置' : '未配置';
-      document.getElementById('has-refresh-token').className = data.has_refresh_token ? 'info-value success' : 'info-value warning';
-      
-      document.getElementById('has-access-token').textContent = data.has_access_token ? '已配置' : '未配置';
-      document.getElementById('has-access-token').className = data.has_access_token ? 'info-value success' : 'info-value warning';
-      
-      if (data.expires_at && data.expires_at !== '0001-01-01T00:00:00Z') {
-        const expiresDate = new Date(data.expires_at);
-        document.getElementById('token-expires').textContent = expiresDate.toLocaleString('zh-CN');
-        document.getElementById('token-expires').className = data.is_expired ? 'info-value danger' : 'info-value success';
-      } else {
-        document.getElementById('token-expires').textContent = '未知';
+      if (infoEl) {
+        infoEl.style.display = 'block';
+        
+        const statusText = document.getElementById('token-status-text');
+        if (statusText) {
+          statusText.textContent = data.is_expired ? '已过期' : '有效';
+          statusText.className = data.is_expired ? 'info-value danger' : 'info-value success';
+        }
+        
+        const hasRefresh = document.getElementById('has-refresh-token');
+        if (hasRefresh) {
+          hasRefresh.textContent = data.has_refresh_token ? '已配置' : '未配置';
+          hasRefresh.className = data.has_refresh_token ? 'info-value success' : 'info-value warning';
+        }
+        
+        const hasAccess = document.getElementById('has-access-token');
+        if (hasAccess) {
+          hasAccess.textContent = data.has_access_token ? '已配置' : '未配置';
+          hasAccess.className = data.has_access_token ? 'info-value success' : 'info-value warning';
+        }
+        
+        const expiresEl = document.getElementById('token-expires');
+        if (expiresEl) {
+          if (data.expires_at && data.expires_at !== '0001-01-01T00:00:00Z') {
+            const expiresDate = new Date(data.expires_at);
+            expiresEl.textContent = expiresDate.toLocaleString('zh-CN');
+            expiresEl.className = data.is_expired ? 'info-value danger' : 'info-value success';
+          } else {
+            expiresEl.textContent = '未知';
+          }
+        }
       }
     }
   } catch (error) {
-    console.error('Failed to load token info:', error);
+    console.log('Token info not available:', error.message);
   }
 }
 
@@ -791,6 +808,7 @@ async function saveConfig() {
   const config = {
     download_dir: document.getElementById('download-dir').value,
     default_save_path: document.getElementById('default-save-path').dataset.folderId || '',
+    default_save_name: document.getElementById('default-save-path').value || '',
     monitor_interval: parseInt(document.getElementById('monitor-interval').value)
   };
   

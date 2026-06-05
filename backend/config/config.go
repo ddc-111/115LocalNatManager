@@ -104,6 +104,9 @@ func (m *Manager) UpdateConfig(req model.ConfigUpdateRequest) {
 	if req.DefaultSavePath != "" {
 		m.config.DefaultSavePath = req.DefaultSavePath
 	}
+	if req.DefaultSaveName != "" {
+		m.config.DefaultSaveName = req.DefaultSaveName
+	}
 }
 
 func (m *Manager) GetToken() model.TokenData {

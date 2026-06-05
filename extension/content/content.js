@@ -1,7 +1,18 @@
 const MAGNET_REGEX = /magnet:\?xt=urn:[a-zA-Z0-9]+:[a-zA-Z0-9]{32,}/gi;
-const API_BASE = 'http://localhost:11580/api';
+let API_BASE = 'http://localhost:11580/api';
 
 let detectedMagnets = [];
+
+async function loadApiBase() {
+  try {
+    const settings = await chrome.storage.local.get(['serverUrl']);
+    if (settings.serverUrl) {
+      API_BASE = settings.serverUrl + '/api';
+    }
+  } catch (e) {}
+}
+
+loadApiBase();
 
 function scanForMagnets() {
   const pageText = document.body.innerText;
