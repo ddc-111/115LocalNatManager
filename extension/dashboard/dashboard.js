@@ -26,6 +26,24 @@ async function loadSettings() {
   if (settings.accessToken) {
     document.getElementById('access-token').value = settings.accessToken;
   }
+  
+  // 加载服务端配置
+  try {
+    const result = await apiGet('/api/config');
+    if (result.state && result.data) {
+      const config = result.data;
+      if (config.download_dir) {
+        document.getElementById('download-dir').value = config.download_dir;
+      }
+      if (config.default_save_path) {
+        document.getElementById('default-save-path').value = config.default_save_path;
+        document.getElementById('default-save-path').dataset.folderId = config.default_save_path;
+      }
+      if (config.monitor_interval) {
+        document.getElementById('monitor-interval').value = config.monitor_interval;
+      }
+    }
+  } catch (error) {}
 }
 
 function initNavigation() {
@@ -820,12 +838,14 @@ async function toggleMonitor() {
 }
 
 async function apiGet(path) {
-  const response = await fetch(`${apiBase}${path}`);
+  const url = `${apiBase}${path}`.replace(/([^:]\/)\/+/g, '$1');
+  const response = await fetch(url);
   return response.json();
 }
 
 async function apiPost(path, body) {
-  const response = await fetch(`${apiBase}${path}`, {
+  const url = `${apiBase}${path}`.replace(/([^:]\/)\/+/g, '$1');
+  const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
@@ -834,7 +854,8 @@ async function apiPost(path, body) {
 }
 
 async function apiPut(path, body) {
-  const response = await fetch(`${apiBase}${path}`, {
+  const url = `${apiBase}${path}`.replace(/([^:]\/)\/+/g, '$1');
+  const response = await fetch(url, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
@@ -843,7 +864,8 @@ async function apiPut(path, body) {
 }
 
 async function apiDelete(path) {
-  const response = await fetch(`${apiBase}${path}`, { method: 'DELETE' });
+  const url = `${apiBase}${path}`.replace(/([^:]\/)\/+/g, '$1');
+  const response = await fetch(url, { method: 'DELETE' });
   return response.json();
 }
 
