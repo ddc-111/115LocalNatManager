@@ -23,6 +23,7 @@ func (c *Client) GetFileList(cid string, limit, offset int) (map[string]interfac
 	}
 	params.Set("limit", limitToStr(limit))
 	params.Set("offset", limitToStr(offset))
+	params.Set("show_dir", "1")
 
 	result, err := c.doQueryRequest("GET", BaseURL+"/open/ufile/files", params)
 	if err != nil {

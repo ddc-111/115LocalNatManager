@@ -47,7 +47,7 @@ function showPage(page) {
     dashboard: '控制台',
     magnets: '磁力链接',
     downloads: '下载任务',
-    files: '文件管理',
+    files: '云文件管理',
     settings: '设置'
   };
   document.getElementById('page-title').textContent = titles[page] || page;
@@ -614,8 +614,14 @@ function confirmFolderSelection() {
 }
 
 async function testConnection() {
-  const url = document.getElementById('server-url').value.trim();
+  let url = document.getElementById('server-url').value.trim();
   const resultEl = document.getElementById('connection-result');
+  
+  // 自动添加 http:// 前缀
+  if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'http://' + url;
+    document.getElementById('server-url').value = url;
+  }
   
   try {
     const response = await fetch(`${url}/health`, { signal: AbortSignal.timeout(5000) });
