@@ -11,7 +11,6 @@ import (
 	"runtime"
 	"sort"
 	"strings"
-	"time"
 
 	"115localnatmanager/model"
 )
@@ -126,55 +125,23 @@ func (h *SystemHandler) ListDirectory(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func isNetworkMount(path string) bool {
-	return strings.Contains(path, "/Volumes/") ||
-		strings.Contains(path, "\\\\") ||
-		strings.HasPrefix(path, "//") ||
-		strings.HasPrefix(path, "/mnt/") ||
-		strings.HasPrefix(path, "/media/")
-}
-
 func isPathAccessible(path string) bool {
 	err := checkPathAccessible(path)
 	return err == nil
 }
 
 func checkPathAccessible(path string) error {
-	type checkResult struct {
-		err error
-	}
-
-	ch := make(chan checkResult, 1)
-	go func() {
-		f, err := os.Open(path)
-		if err != nil {
-			ch <- checkResult{err}
-			return
+	f, err := os.Open(path)
+	if err != nil {
+		// os.Open 失败，尝试 ls 命令（兼容 SMB/NFS）
+		cmdErr := exec.Command("ls", path).Run()
+		if cmdErr == nil {
+			return nil
 		}
-		_, err = f.Readdirnames(1)
-		f.Close()
-		ch <- checkResult{err}
-	}()
-
-	timeout := 3 * time.Second
-	if isNetworkMount(path) {
-		timeout = 30 * time.Second
+		return fmt.Errorf("os: %v, ls: %v", err, cmdErr)
 	}
-
-	select {
-	case r := <-ch:
-		if r.err != nil {
-			// os.Open/Readdirnames 失败，尝试 ls 命令（兼容 SMB/NFS）
-			cmdErr := exec.Command("ls", path).Run()
-			if cmdErr == nil {
-				return nil
-			}
-			return fmt.Errorf("os: %v, ls: %v", r.err, cmdErr)
-		}
-		return nil
-	case <-time.After(timeout):
-		return fmt.Errorf("目录访问超时 (%v)", timeout)
-	}
+	f.Close()
+	return nil
 }
 
 func listDirByCommand(dir string) ([]DirEntry, error) {
@@ -432,7 +399,18 @@ func (h *SystemHandler) TestDirectory(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SystemHandler) TestDirectoryWrite(w http.ResponseWriter, r *http.Request) {
-	dir := r.URL.Query().Get("dir")
+	var req struct {
+		Path string `json:"path"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{
+			State:   false,
+			Message: "无效请求",
+		})
+		return
+	}
+
+	dir := req.Path
 	if dir == "" {
 		writeJSON(w, http.StatusBadRequest, model.APIResponse{
 			State:   false,

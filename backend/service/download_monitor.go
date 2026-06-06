@@ -795,47 +795,17 @@ func (dm *DownloadMonitor) isDirAccessible(dir string) bool {
 		return false
 	}
 
-	// 检查是否是 SMB/网络挂载目录
-	isSMB := strings.Contains(dir, "/Volumes/") || strings.Contains(dir, "\\\\") ||
-		strings.HasPrefix(dir, "//") || strings.HasPrefix(dir, "/mnt/") ||
-		strings.HasPrefix(dir, "/media/")
-
-	type checkResult struct {
-		accessible bool
-		err        error
-	}
-
-	ch := make(chan checkResult, 1)
-	go func() {
-		// 只做写入测试（MkdirAll + WriteFile），不依赖 os.Open/Readdir
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			ch <- checkResult{false, err}
-			return
-		}
-		testFile := filepath.Join(dir, ".115manager_test")
-		if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
-			ch <- checkResult{false, err}
-			return
-		}
-		os.Remove(testFile)
-		ch <- checkResult{true, nil}
-	}()
-
-	timeout := 5 * time.Second
-	if isSMB {
-		timeout = 30 * time.Second
-	}
-
-	select {
-	case result := <-ch:
-		if !result.accessible && result.err != nil {
-			dm.logger.Warn("[检测] 目录不可访问: %s, 错误: %v", dir, result.err)
-		}
-		return result.accessible
-	case <-time.After(timeout):
-		dm.logger.Warn("[检测] 目录访问超时: %s", dir)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		dm.logger.Warn("[检测] 目录不可访问: %s, 错误: %v", dir, err)
 		return false
 	}
+	testFile := filepath.Join(dir, ".115manager_test")
+	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+		dm.logger.Warn("[检测] 目录不可写: %s, 错误: %v", dir, err)
+		return false
+	}
+	os.Remove(testFile)
+	return true
 }
 
 func (dm *DownloadMonitor) CheckDownloadDir() map[string]interface{} {
