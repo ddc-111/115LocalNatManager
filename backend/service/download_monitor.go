@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +21,7 @@ type DownloadMonitor struct {
 	running        bool
 	downloaded     map[string]bool
 	localDownloads map[string]*LocalDownloadTask
+	downloadedFiles map[string]string
 }
 
 type LocalDownloadTask struct {
@@ -35,12 +37,13 @@ type LocalDownloadTask struct {
 
 func NewDownloadMonitor(client *api.Client, cfg *config.Manager, logger *Logger) *DownloadMonitor {
 	return &DownloadMonitor{
-		client:         client,
-		config:         cfg,
-		logger:         logger,
-		stopCh:         make(chan struct{}),
-		downloaded:     make(map[string]bool),
-		localDownloads: make(map[string]*LocalDownloadTask),
+		client:          client,
+		config:          cfg,
+		logger:          logger,
+		stopCh:          make(chan struct{}),
+		downloaded:      make(map[string]bool),
+		localDownloads:  make(map[string]*LocalDownloadTask),
+		downloadedFiles: make(map[string]string),
 	}
 }
 
@@ -112,6 +115,12 @@ func (dm *DownloadMonitor) checkTasks() {
 		return
 	}
 
+	videoExts := map[string]bool{
+		".mp4": true, ".mkv": true, ".avi": true, ".mov": true,
+		".wmv": true, ".flv": true, ".webm": true, ".m4v": true,
+		".ts": true, ".rmvb": true, ".rm": true, ".3gp": true,
+	}
+
 	for _, task := range tasks {
 		taskMap, ok := task.(map[string]interface{})
 		if !ok {
@@ -120,6 +129,7 @@ func (dm *DownloadMonitor) checkTasks() {
 
 		status, _ := taskMap["status"].(float64)
 		infoHash, _ := taskMap["info_hash"].(string)
+		name, _ := taskMap["name"].(string)
 
 		if status == 2 {
 			dm.mu.Lock()
@@ -129,6 +139,14 @@ func (dm *DownloadMonitor) checkTasks() {
 			}
 			dm.downloaded[infoHash] = true
 			dm.mu.Unlock()
+
+			if cfg.DownloadMode == "video" {
+				ext := strings.ToLower(filepath.Ext(name))
+				if !videoExts[ext] {
+					dm.logger.Info("Skipping non-video file: %s", name)
+					continue
+				}
+			}
 
 			go dm.downloadCompletedFile(taskMap)
 		}
@@ -187,6 +205,9 @@ func (dm *DownloadMonitor) downloadCompletedFile(task map[string]interface{}) {
 
 		downloadURL, _ := urlObj["url"].(string)
 		if downloadURL != "" {
+			dm.mu.Lock()
+			dm.downloadedFiles[name] = "downloading"
+			dm.mu.Unlock()
 			dm.StartFileDownload(downloadURL, name)
 			return
 		}
@@ -231,6 +252,17 @@ func (dm *DownloadMonitor) GetLocalDownloadTasks() []LocalDownloadTask {
 		tasks = append(tasks, *task)
 	}
 	return tasks
+}
+
+func (dm *DownloadMonitor) GetDownloadedFiles() map[string]string {
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
+
+	result := make(map[string]string)
+	for k, v := range dm.downloadedFiles {
+		result[k] = v
+	}
+	return result
 }
 
 func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *LocalDownloadTask) {
@@ -298,10 +330,12 @@ func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *
 		task.Status = "completed"
 		task.Progress = 100
 		task.Downloaded = downloaded
+		dm.downloadedFiles[filename] = "completed"
 		dm.logger.Info("Downloaded %s (%d bytes) to %s", filename, downloaded, destPath)
 	} else {
 		task.Status = "failed"
 		task.Error = "No data received"
+		dm.downloadedFiles[filename] = "failed"
 		dm.logger.Error("Downloaded %s but no data received", filename)
 	}
 	dm.mu.Unlock()

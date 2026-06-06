@@ -55,6 +55,7 @@ func NewRouter(client *api.Client, cfg *config.Manager, monitor *service.Downloa
 	api.HandleFunc("/download/clear", downloadHandler.ClearTasks).Methods("POST", "OPTIONS")
 	api.HandleFunc("/download/quota", downloadHandler.GetQuota).Methods("GET", "OPTIONS")
 	api.HandleFunc("/download/check-dir", downloadHandler.CheckDownloadDir).Methods("GET", "OPTIONS")
+	api.HandleFunc("/download/downloaded", downloadHandler.GetDownloadedFiles).Methods("GET", "OPTIONS")
 	api.HandleFunc("/download/monitor", downloadHandler.GetMonitorStatus).Methods("GET", "OPTIONS")
 	api.HandleFunc("/download/monitor", downloadHandler.ToggleMonitor).Methods("POST", "OPTIONS")
 	api.HandleFunc("/download/tasks/{hash}", downloadHandler.DeleteTask).Methods("DELETE", "OPTIONS")

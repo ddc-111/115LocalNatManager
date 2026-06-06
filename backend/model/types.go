@@ -16,6 +16,7 @@ type Config struct {
 	DefaultSavePath      string `json:"default_save_path"`
 	DefaultSaveName      string `json:"default_save_name"`
 	LocalDownloadEnabled bool   `json:"local_download_enabled"`
+	DownloadMode         string `json:"download_mode"`
 }
 
 type APIResponse struct {
@@ -73,4 +74,5 @@ type ConfigUpdateRequest struct {
 	DefaultSavePath      string `json:"default_save_path,omitempty"`
 	DefaultSaveName      string `json:"default_save_name,omitempty"`
 	LocalDownloadEnabled *bool  `json:"local_download_enabled,omitempty"`
+	DownloadMode         string `json:"download_mode,omitempty"`
 }

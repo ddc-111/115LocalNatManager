@@ -437,6 +437,14 @@
                 <small class="form-help">磁力链云下载的默认保存位置（115云盘文件夹）</small>
               </div>
               <div class="form-group">
+                <label>下载模式</label>
+                <select id="download-mode">
+                  <option value="all">全部文件</option>
+                  <option value="video">仅视频文件</option>
+                </select>
+                <small class="form-help">自动下载到本地时的文件类型过滤</small>
+              </div>
+              <div class="form-group">
                 <label>监控间隔（秒）</label>
                 <input type="number" id="monitor-interval" value="30" min="10" max="300">
                 <small class="form-help">检查已完成下载的频率</small>

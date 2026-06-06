@@ -176,3 +176,11 @@ func (h *DownloadHandler) CheckDownloadDir(w http.ResponseWriter, r *http.Reques
 		Data:  result,
 	})
 }
+
+func (h *DownloadHandler) GetDownloadedFiles(w http.ResponseWriter, r *http.Request) {
+	files := h.monitor.GetDownloadedFiles()
+	writeJSON(w, http.StatusOK, model.APIResponse{
+		State: true,
+		Data:  files,
+	})
+}

@@ -28,6 +28,7 @@ func NewManager(dataDir string) *Manager {
 			MonitorEnabled:       true,
 			MonitorInterval:      30,
 			LocalDownloadEnabled: true,
+			DownloadMode:         "all",
 		},
 	}
 	os.MkdirAll(dataDir, 0755)
@@ -108,6 +109,9 @@ func (m *Manager) UpdateConfig(req model.ConfigUpdateRequest) {
 	}
 	if req.LocalDownloadEnabled != nil {
 		m.config.LocalDownloadEnabled = *req.LocalDownloadEnabled
+	}
+	if req.DownloadMode != "" {
+		m.config.DownloadMode = req.DownloadMode
 	}
 }
 

@@ -42,6 +42,12 @@ async function loadSettings() {
       if (config.monitor_interval) {
         document.getElementById('monitor-interval').value = config.monitor_interval;
       }
+      if (config.download_mode) {
+        document.getElementById('download-mode').value = config.download_mode;
+      }
+      if (config.monitor_enabled !== undefined) {
+        document.getElementById('auto-monitor').checked = config.monitor_enabled;
+      }
     }
   } catch (error) {}
 }
@@ -363,9 +369,14 @@ async function loadTasks() {
   container.innerHTML = '<div class="loading"><div class="spinner"></div><p>加载中...</p></div>';
   
   try {
-    const result = await apiGet('/api/download/tasks');
-    if (result.state && result.data?.tasks?.length > 0) {
-      renderTasks(result.data.tasks);
+    const [tasksRes, downloadedRes] = await Promise.all([
+      apiGet('/api/download/tasks'),
+      apiGet('/api/download/downloaded')
+    ]);
+    
+    if (tasksRes.state && tasksRes.data?.tasks?.length > 0) {
+      const downloadedFiles = downloadedRes.state ? (downloadedRes.data || {}) : {};
+      renderTasks(tasksRes.data.tasks, downloadedFiles);
     } else {
       container.innerHTML = '<div class="empty-state"><i class="fas fa-cloud-download-alt"></i><p>暂无下载任务</p></div>';
     }
@@ -374,12 +385,22 @@ async function loadTasks() {
   }
 }
 
-function renderTasks(tasks) {
+function renderTasks(tasks, downloadedFiles = {}) {
   const container = document.getElementById('download-tasks');
   container.innerHTML = tasks.map(task => {
     const statusClass = task.status === 2 ? 'completed' : task.status === -1 ? 'failed' : task.status === 0 ? 'pending' : 'downloading';
     const statusIcon = task.status === 2 ? 'check-circle' : task.status === -1 ? 'times-circle' : task.status === 0 ? 'clock' : 'spinner fa-spin';
     const statusText = task.status === 2 ? '已完成' : task.status === -1 ? '失败' : task.status === 0 ? '等待中' : '下载中';
+    
+    const localStatus = downloadedFiles[task.name];
+    let localBadge = '';
+    if (localStatus === 'completed') {
+      localBadge = '<span class="badge badge-success" title="已下载到本地"><i class="fas fa-hdd"></i> 本地</span>';
+    } else if (localStatus === 'downloading') {
+      localBadge = '<span class="badge badge-info" title="正在下载到本地"><i class="fas fa-spinner fa-spin"></i> 下载中</span>';
+    } else if (localStatus === 'failed') {
+      localBadge = '<span class="badge badge-danger" title="本地下载失败"><i class="fas fa-exclamation"></i> 失败</span>';
+    }
     
     return `
       <div class="task-item" data-status="${statusClass}">
@@ -387,7 +408,7 @@ function renderTasks(tasks) {
           <i class="fas fa-${statusIcon}"></i>
         </div>
         <div class="task-info">
-          <div class="task-name">${escapeHtml(task.name || '未知')}</div>
+          <div class="task-name">${escapeHtml(task.name || '未知')} ${localBadge}</div>
           <div class="task-meta">${formatSize(task.size)} · ${statusText}</div>
         </div>
         <div class="task-progress">
@@ -843,7 +864,9 @@ async function saveConfig() {
     download_dir: document.getElementById('download-dir').value,
     default_save_path: document.getElementById('default-save-path').dataset.folderId || '',
     default_save_name: document.getElementById('default-save-path').value || '',
-    monitor_interval: parseInt(document.getElementById('monitor-interval').value)
+    monitor_interval: parseInt(document.getElementById('monitor-interval').value),
+    monitor_enabled: document.getElementById('auto-monitor').checked,
+    download_mode: document.getElementById('download-mode').value
   };
   
   try {
