@@ -794,21 +794,47 @@ func (dm *DownloadMonitor) isDirAccessible(dir string) bool {
 	if dir == "" {
 		return false
 	}
-	
-	info, err := os.Stat(dir)
-	if err != nil {
+
+	// 检查是否是 SMB 挂载目录
+	isSMB := strings.Contains(dir, "/Volumes/") || strings.Contains(dir, "\\\\")
+
+	type checkResult struct {
+		accessible bool
+	}
+
+	ch := make(chan checkResult, 1)
+	go func() {
+		info, err := os.Stat(dir)
+		if err != nil {
+			ch <- checkResult{false}
+			return
+		}
+		if !info.IsDir() {
+			ch <- checkResult{false}
+			return
+		}
+
+		testFile := filepath.Join(dir, ".115manager_test")
+		if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+			ch <- checkResult{false}
+			return
+		}
+		os.Remove(testFile)
+		ch <- checkResult{true}
+	}()
+
+	timeout := 5 * time.Second
+	if isSMB {
+		timeout = 15 * time.Second
+	}
+
+	select {
+	case result := <-ch:
+		return result.accessible
+	case <-time.After(timeout):
+		dm.logger.Warn("[检测] 目录访问超时: %s", dir)
 		return false
 	}
-	if !info.IsDir() {
-		return false
-	}
-	
-	testFile := filepath.Join(dir, ".115manager_test")
-	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
-		return false
-	}
-	os.Remove(testFile)
-	return true
 }
 
 func (dm *DownloadMonitor) CheckDownloadDir() map[string]interface{} {
