@@ -1345,18 +1345,26 @@ async function loadLocalDownloadTasks() {
 function renderLocalDownloadTasks(tasks) {
   const container = document.getElementById('local-download-tasks');
   container.innerHTML = tasks.map(task => {
-    const statusClass = task.status === 'completed' ? 'completed' : task.status === 'failed' ? 'failed' : 'downloading';
-    const statusIcon = task.status === 'completed' ? 'check-circle' : task.status === 'failed' ? 'times-circle' : 'spinner fa-spin';
-    const statusText = task.status === 'completed' ? '已完成' : task.status === 'failed' ? '失败' : '下载中';
+    const statusClass = task.status === 'completed' ? 'completed' : task.status === 'failed' ? 'failed' : task.status === 'cancelled' ? 'cancelled' : 'downloading';
+    const statusIcon = task.status === 'completed' ? 'check-circle' : task.status === 'failed' ? 'times-circle' : task.status === 'cancelled' ? 'ban' : 'spinner fa-spin';
+    const statusText = task.status === 'completed' ? '已完成' : task.status === 'failed' ? '失败' : task.status === 'cancelled' ? '已取消' : '下载中';
+    
+    const speedText = task.speed ? formatSpeed(task.speed) : '';
+    const sizeText = task.size ? formatSize(task.size) : '';
+    const downloadedText = task.downloaded ? formatSize(task.downloaded) : '';
     
     return `
-      <div class="task-item" data-status="${statusClass}">
+      <div class="task-item" data-status="${statusClass}" data-filename="${escapeHtml(task.file_name)}">
         <div class="task-icon ${statusClass}">
           <i class="fas fa-${statusIcon}"></i>
         </div>
         <div class="task-info">
           <div class="task-name">${escapeHtml(task.file_name || '未知')}</div>
-          <div class="task-meta">${formatSize(task.size)} · ${statusText}${task.error ? ` · ${escapeHtml(task.error)}` : ''}</div>
+          <div class="task-meta">
+            ${downloadedText}${sizeText ? ' / ' + sizeText : ''} · ${statusText}
+            ${speedText ? ' · ' + speedText : ''}
+            ${task.error ? ' · ' + escapeHtml(task.error) : ''}
+          </div>
         </div>
         <div class="task-progress">
           <div class="progress-bar">
@@ -1364,14 +1372,35 @@ function renderLocalDownloadTasks(tasks) {
           </div>
           <span class="progress-text">${(task.progress || 0).toFixed(1)}%</span>
         </div>
+        <div class="task-actions">
+          ${task.status === 'downloading' ? `
+            <button class="btn btn-icon btn-warning cancel-download" data-filename="${escapeHtml(task.file_name)}" title="取消下载">
+              <i class="fas fa-stop"></i>
+            </button>
+          ` : ''}
+        </div>
       </div>
     `;
   }).join('');
   
+  container.querySelectorAll('.cancel-download').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (confirm('确定取消下载？已下载的部分将被删除。')) {
+        try {
+          await apiPost(`/api/download/cancel/${encodeURIComponent(btn.dataset.filename)}`, {});
+          showToast('下载已取消', 'success');
+          loadLocalDownloadTasks();
+        } catch (error) {
+          showToast('取消下载失败', 'error');
+        }
+      }
+    });
+  });
+  
   const stats = {
     downloading: tasks.filter(t => t.status === 'downloading').length,
     completed: tasks.filter(t => t.status === 'completed').length,
-    failed: tasks.filter(t => t.status === 'failed').length
+    failed: tasks.filter(t => t.status === 'failed' || t.status === 'cancelled').length
   };
   
   const statsEl = document.getElementById('download-stats');
@@ -1383,6 +1412,18 @@ function renderLocalDownloadTasks(tasks) {
   } else {
     statsEl.style.display = 'none';
   }
+}
+
+function formatSpeed(bytesPerSecond) {
+  if (bytesPerSecond <= 0) return '';
+  const units = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
+  let i = 0;
+  let speed = bytesPerSecond;
+  while (speed >= 1024 && i < units.length - 1) {
+    speed /= 1024;
+    i++;
+  }
+  return `${speed.toFixed(1)} ${units[i]}`;
 }
 
 let autoRefreshInterval = null;

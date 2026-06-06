@@ -184,3 +184,20 @@ func (h *DownloadHandler) GetDownloadedFiles(w http.ResponseWriter, r *http.Requ
 		Data:  files,
 	})
 }
+
+func (h *DownloadHandler) CancelDownload(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	filename := vars["filename"]
+
+	if h.monitor.CancelDownload(filename) {
+		writeJSON(w, http.StatusOK, model.APIResponse{
+			State:   true,
+			Message: "Download cancelled",
+		})
+	} else {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{
+			State:   false,
+			Message: "Download not found or not in progress",
+		})
+	}
+}

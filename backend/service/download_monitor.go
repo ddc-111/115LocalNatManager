@@ -40,8 +40,10 @@ type LocalDownloadTask struct {
 	Progress    float64 `json:"progress"`
 	Size        int64   `json:"size"`
 	Downloaded  int64   `json:"downloaded"`
+	Speed       int64   `json:"speed"`
 	Error       string  `json:"error,omitempty"`
 	StartTime   int64   `json:"start_time"`
+	Cancel      chan struct{} `json:"-"`
 }
 
 type DownloadMonitor struct {
@@ -438,12 +440,37 @@ func (dm *DownloadMonitor) StartFileDownload(url, filename string, record *Downl
 		URL:       url,
 		Status:    "downloading",
 		StartTime: time.Now().Unix(),
+		Cancel:    make(chan struct{}),
 	}
 	dm.localDownloads[filename] = task
 	dm.mu.Unlock()
 
-	dm.logger.Info("Starting file download: %s", filename)
+	dm.logger.Info("[下载] 开始下载: %s", filename)
 	go dm.downloadFileWithProgress(url, filename, task, record)
+}
+
+func (dm *DownloadMonitor) CancelDownload(filename string) bool {
+	dm.mu.Lock()
+	task, exists := dm.localDownloads[filename]
+	dm.mu.Unlock()
+
+	if !exists || task.Status != "downloading" {
+		return false
+	}
+
+	close(task.Cancel)
+	task.Status = "cancelled"
+	task.Error = "用户取消下载"
+
+	cfg := dm.config.GetConfig()
+	destPath := filepath.Join(cfg.DownloadDir, filename)
+	if err := os.Remove(destPath); err != nil && !os.IsNotExist(err) {
+		dm.logger.Error("[下载] 删除文件失败: %s: %v", destPath, err)
+	} else {
+		dm.logger.Info("[下载] 已删除未完成文件: %s", destPath)
+	}
+
+	return true
 }
 
 func (dm *DownloadMonitor) GetLocalDownloadTasks() []LocalDownloadTask {
@@ -478,7 +505,7 @@ func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *
 	os.MkdirAll(destDir, 0755)
 
 	destPath := filepath.Join(destDir, filename)
-	dm.logger.Info("Starting download: %s -> %s", filename, destPath)
+	dm.logger.Info("[下载] 开始下载: %s -> %s", filename, destPath)
 
 	resp, err := http.Get(url)
 	if err != nil {
@@ -491,7 +518,7 @@ func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *
 			record.EndTime = time.Now().Unix()
 		}
 		dm.mu.Unlock()
-		dm.logger.Error("Failed to download %s: %v", filename, err)
+		dm.logger.Error("[下载] 下载失败 %s: %v", filename, err)
 		dm.saveDB()
 		return
 	}
@@ -512,7 +539,7 @@ func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *
 			record.EndTime = time.Now().Unix()
 		}
 		dm.mu.Unlock()
-		dm.logger.Error("Failed to create file %s: %v", destPath, err)
+		dm.logger.Error("[下载] 创建文件失败 %s: %v", destPath, err)
 		dm.saveDB()
 		return
 	}
@@ -520,7 +547,44 @@ func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *
 
 	buf := make([]byte, 32*1024)
 	var downloaded int64
+	var lastSpeedUpdate int64
+	var lastDownloaded int64
+	speedTicker := time.NewTicker(time.Second)
+	defer speedTicker.Stop()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-task.Cancel:
+				return
+			case <-speedTicker.C:
+				dm.mu.Lock()
+				now := time.Now().Unix()
+				if lastSpeedUpdate > 0 {
+					elapsed := now - lastSpeedUpdate
+					if elapsed > 0 {
+						task.Speed = (downloaded - lastDownloaded) / elapsed
+					}
+				}
+				lastSpeedUpdate = now
+				lastDownloaded = downloaded
+				dm.mu.Unlock()
+			}
+		}
+	}()
+
 	for {
+		select {
+		case <-task.Cancel:
+			dm.logger.Info("[下载] 下载被取消: %s", filename)
+			file.Close()
+			os.Remove(destPath)
+			return
+		default:
+		}
+
 		n, err := resp.Body.Read(buf)
 		if n > 0 {
 			if _, writeErr := file.Write(buf[:n]); writeErr != nil {
@@ -533,7 +597,8 @@ func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *
 					record.EndTime = time.Now().Unix()
 				}
 				dm.mu.Unlock()
-				dm.logger.Error("Failed to write file %s: %v", filename, writeErr)
+				dm.logger.Error("[下载] 写入文件失败 %s: %v", filename, writeErr)
+				os.Remove(destPath)
 				dm.saveDB()
 				return
 			}
@@ -550,25 +615,34 @@ func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *
 		}
 	}
 
+	<-done
+
 	dm.mu.Lock()
+	if task.Status == "cancelled" {
+		dm.mu.Unlock()
+		return
+	}
+
 	if downloaded > 0 {
 		task.Status = "completed"
 		task.Progress = 100
 		task.Downloaded = downloaded
+		task.Speed = 0
 		if record != nil {
 			record.Status = StatusCompleted
 			record.EndTime = time.Now().Unix()
 		}
-		dm.logger.Info("Downloaded %s (%d bytes) to %s", filename, downloaded, destPath)
+		dm.logger.Info("[下载] 下载完成 %s (%d bytes) -> %s", filename, downloaded, destPath)
 	} else {
 		task.Status = "failed"
-		task.Error = "No data received"
+		task.Error = "没有接收到数据"
 		if record != nil {
 			record.Status = StatusFailed
-			record.Error = "No data received"
+			record.Error = "没有接收到数据"
 			record.EndTime = time.Now().Unix()
 		}
-		dm.logger.Error("Downloaded %s but no data received", filename)
+		dm.logger.Error("[下载] 下载失败 %s: 没有接收到数据", filename)
+		os.Remove(destPath)
 	}
 	dm.mu.Unlock()
 	dm.saveDB()

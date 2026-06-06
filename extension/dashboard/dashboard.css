@@ -327,6 +327,11 @@ body {
   color: white;
 }
 
+.btn-warning {
+  background: var(--warning);
+  color: white;
+}
+
 .btn-icon {
   width: 40px;
   height: 40px;
@@ -462,6 +467,11 @@ body {
 .task-icon.failed {
   background: var(--danger-light);
   color: var(--danger);
+}
+
+.task-icon.cancelled {
+  background: var(--warning-light);
+  color: var(--warning);
 }
 
 .task-icon.pending {
