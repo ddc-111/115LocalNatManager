@@ -39,24 +39,24 @@ func NewRouter(client *api.Client, cfg *config.Manager, monitor *service.Downloa
 	}).Methods("GET", "OPTIONS")
 
 	api.HandleFunc("/files", fileHandler.GetFileList).Methods("GET", "OPTIONS")
-	api.HandleFunc("/files/{id}", fileHandler.GetFileInfo).Methods("GET", "OPTIONS")
-	api.HandleFunc("/files/{id}", fileHandler.RenameFile).Methods("PUT", "OPTIONS")
 	api.HandleFunc("/files/search", fileHandler.SearchFiles).Methods("GET", "OPTIONS")
 	api.HandleFunc("/files/delete", fileHandler.DeleteFiles).Methods("POST", "OPTIONS")
 	api.HandleFunc("/files/move", fileHandler.MoveFiles).Methods("POST", "OPTIONS")
 	api.HandleFunc("/files/download", fileHandler.DownloadFile).Methods("POST", "OPTIONS")
 	api.HandleFunc("/files/download-url", fileHandler.GetDownloadURL).Methods("POST", "OPTIONS")
 	api.HandleFunc("/files/local-downloads", fileHandler.GetLocalDownloads).Methods("GET", "OPTIONS")
+	api.HandleFunc("/files/{id}", fileHandler.GetFileInfo).Methods("GET", "OPTIONS")
+	api.HandleFunc("/files/{id}", fileHandler.RenameFile).Methods("PUT", "OPTIONS")
 	api.HandleFunc("/folders", fileHandler.CreateFolder).Methods("POST", "OPTIONS")
 
 	api.HandleFunc("/download", downloadHandler.AddTask).Methods("POST", "OPTIONS")
 	api.HandleFunc("/download/tasks", downloadHandler.GetTaskList).Methods("GET", "OPTIONS")
-	api.HandleFunc("/download/tasks/{hash}", downloadHandler.DeleteTask).Methods("DELETE", "OPTIONS")
 	api.HandleFunc("/download/clear", downloadHandler.ClearTasks).Methods("POST", "OPTIONS")
 	api.HandleFunc("/download/quota", downloadHandler.GetQuota).Methods("GET", "OPTIONS")
+	api.HandleFunc("/download/check-dir", downloadHandler.CheckDownloadDir).Methods("GET", "OPTIONS")
 	api.HandleFunc("/download/monitor", downloadHandler.GetMonitorStatus).Methods("GET", "OPTIONS")
 	api.HandleFunc("/download/monitor", downloadHandler.ToggleMonitor).Methods("POST", "OPTIONS")
-	api.HandleFunc("/download/check-dir", downloadHandler.CheckDownloadDir).Methods("GET", "OPTIONS")
+	api.HandleFunc("/download/tasks/{hash}", downloadHandler.DeleteTask).Methods("DELETE", "OPTIONS")
 
 	api.HandleFunc("/config", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, model.APIResponse{
