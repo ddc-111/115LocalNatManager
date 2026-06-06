@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"115localnatmanager/api"
 	"115localnatmanager/config"
@@ -12,7 +13,7 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func NewRouter(client *api.Client, cfg *config.Manager, monitor *service.DownloadMonitor) *mux.Router {
+func NewRouter(client *api.Client, cfg *config.Manager, monitor *service.DownloadMonitor, logger *service.Logger) *mux.Router {
 	r := mux.NewRouter()
 	r.Use(CORSMiddleware)
 
@@ -86,6 +87,27 @@ func NewRouter(client *api.Client, cfg *config.Manager, monitor *service.Downloa
 	api.HandleFunc("/system/dirs", systemHandler.ListDirectory).Methods("GET", "OPTIONS")
 	api.HandleFunc("/system/dirs/create", systemHandler.CreateDirectory).Methods("POST", "OPTIONS")
 	api.HandleFunc("/system/dirs/test", systemHandler.TestDirectory).Methods("GET", "OPTIONS")
+
+	api.HandleFunc("/logs", func(w http.ResponseWriter, r *http.Request) {
+		level := r.URL.Query().Get("level")
+		limit := 100
+		if l, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && l > 0 {
+			limit = l
+		}
+		logs := logger.GetLogs(level, limit)
+		writeJSON(w, http.StatusOK, model.APIResponse{
+			State: true,
+			Data:  logs,
+		})
+	}).Methods("GET", "OPTIONS")
+
+	api.HandleFunc("/logs/clear", func(w http.ResponseWriter, r *http.Request) {
+		logger.Clear()
+		writeJSON(w, http.StatusOK, model.APIResponse{
+			State:   true,
+			Message: "Logs cleared",
+		})
+	}).Methods("POST", "OPTIONS")
 
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})

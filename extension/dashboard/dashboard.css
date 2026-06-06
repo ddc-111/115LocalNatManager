@@ -1074,6 +1074,60 @@ body {
   max-width: 700px;
 }
 
+/* Log List */
+.log-list {
+  max-height: 500px;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 12px;
+  background: #1a1a2e;
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+.log-entry {
+  padding: 4px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  line-height: 1.6;
+}
+
+.log-entry:last-child {
+  border-bottom: none;
+}
+
+.log-time {
+  color: #6b7280;
+  margin-right: 8px;
+}
+
+.log-level {
+  display: inline-block;
+  width: 50px;
+  text-align: center;
+  margin-right: 8px;
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
+.log-level.INFO {
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.log-level.WARN {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.log-level.ERROR {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.log-message {
+  color: #e5e7eb;
+}
+
 .dir-browser {
   border: 1px solid var(--border);
   border-radius: var(--radius);

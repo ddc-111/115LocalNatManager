@@ -77,7 +77,10 @@ function showPage(page) {
   if (page === 'downloads') loadTasks();
   if (page === 'local-downloads') loadLocalDownloadTasks();
   if (page === 'files') loadFiles(currentCID);
-  if (page === 'settings') loadTokenInfo();
+  if (page === 'settings') {
+    loadTokenInfo();
+    loadServerLogs();
+  }
 }
 
 function initEventListeners() {
@@ -148,6 +151,17 @@ function initEventListeners() {
   });
   
   document.getElementById('toggle-monitor-btn').addEventListener('click', toggleMonitor);
+  
+  document.getElementById('refresh-logs-btn')?.addEventListener('click', loadServerLogs);
+  document.getElementById('clear-logs-btn')?.addEventListener('click', clearServerLogs);
+  
+  document.querySelectorAll('[data-log-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-log-filter]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      loadServerLogs(btn.dataset.logFilter);
+    });
+  });
   
   document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1365,5 +1379,37 @@ async function clearCompletedDownloads() {
     }
   } catch (error) {
     showToast('清除失败', 'error');
+  }
+}
+
+async function loadServerLogs(level = '') {
+  const container = document.getElementById('server-logs');
+  if (!container) return;
+  
+  try {
+    const result = await apiGet(`/api/logs?level=${level}&limit=200`);
+    if (result.state && result.data?.length > 0) {
+      container.innerHTML = result.data.map(log => `
+        <div class="log-entry">
+          <span class="log-time">${escapeHtml(log.time)}</span>
+          <span class="log-level ${log.level}">${log.level}</span>
+          <span class="log-message">${escapeHtml(log.message)}</span>
+        </div>
+      `).join('');
+    } else {
+      container.innerHTML = '<div class="empty-state"><p>暂无日志</p></div>';
+    }
+  } catch (error) {
+    container.innerHTML = '<div class="empty-state"><p>加载日志失败</p></div>';
+  }
+}
+
+async function clearServerLogs() {
+  try {
+    await apiPost('/api/logs/clear', {});
+    showToast('日志已清空', 'success');
+    loadServerLogs();
+  } catch (error) {
+    showToast('清空日志失败', 'error');
   }
 }

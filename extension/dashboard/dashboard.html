@@ -334,6 +334,34 @@
 
           <div class="card">
             <div class="card-header">
+              <h2>服务日志</h2>
+              <div class="header-actions">
+                <button class="btn btn-sm btn-secondary" id="refresh-logs-btn">
+                  <i class="fas fa-sync-alt"></i> 刷新
+                </button>
+                <button class="btn btn-sm btn-danger" id="clear-logs-btn">
+                  <i class="fas fa-trash"></i> 清空
+                </button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="filter-bar">
+                <button class="filter-btn active" data-log-filter="all">全部</button>
+                <button class="filter-btn" data-log-filter="INFO">信息</button>
+                <button class="filter-btn" data-log-filter="WARN">警告</button>
+                <button class="filter-btn" data-log-filter="ERROR">错误</button>
+              </div>
+              <div id="server-logs" class="log-list">
+                <div class="loading">
+                  <div class="spinner"></div>
+                  <p>加载中...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
               <h2>身份验证</h2>
             </div>
             <div class="card-body">

@@ -23,6 +23,7 @@ func main() {
 	log.Printf("Data directory: %s", *dataDir)
 
 	cfg := config.NewManager(*dataDir)
+	logger := service.NewLogger(1000)
 
 	if *port != "" {
 		cfg.UpdateConfig(config.ConfigUpdateRequest{Port: *port})
@@ -30,7 +31,7 @@ func main() {
 
 	client := api.NewClient(cfg)
 	tokenMgr := service.NewTokenManager(client, cfg)
-	monitor := service.NewDownloadMonitor(client, cfg)
+	monitor := service.NewDownloadMonitor(client, cfg, logger)
 
 	tokenMgr.Start()
 
@@ -39,14 +40,16 @@ func main() {
 		monitor.Start()
 	}
 
-	router := handler.NewRouter(client, cfg, monitor)
+	router := handler.NewRouter(client, cfg, monitor, logger)
 
 	addr := ":" + appConfig.Port
 	log.Printf("Server listening on %s", addr)
 	log.Printf("Download directory: %s", appConfig.DownloadDir)
+	logger.Info("Server started on %s", addr)
 
 	if err := http.ListenAndServe(addr, router); err != nil {
 		log.Fatalf("Server failed: %v", err)
+		logger.Error("Server failed: %v", err)
 		os.Exit(1)
 	}
 }
