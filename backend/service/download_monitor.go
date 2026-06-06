@@ -296,6 +296,7 @@ func (dm *DownloadMonitor) downloadWithSemaphore(task map[string]interface{}, re
 func (dm *DownloadMonitor) downloadCompletedFile(task map[string]interface{}, record *DownloadRecord) {
 	name, _ := task["name"].(string)
 	fileID, _ := task["file_id"].(string)
+	fileCategory, _ := task["file_category"].(float64)
 
 	if fileID == "" {
 		dm.logger.Error("[下载] 任务 %s 没有 file_id", name)
@@ -307,7 +308,81 @@ func (dm *DownloadMonitor) downloadCompletedFile(task map[string]interface{}, re
 		return
 	}
 
-	dm.logger.Info("[下载] 开始处理任务: %s (file_id: %s)", name, fileID)
+	dm.logger.Info("[下载] 开始处理任务: %s (file_id: %s, category: %v)", name, fileID, fileCategory)
+
+	// 如果是文件夹，获取文件夹内的文件列表
+	if fileCategory == 0 {
+		dm.logger.Info("[下载] %s 是文件夹，获取文件列表...", name)
+		dm.processFolder(name, fileID, record)
+		return
+	}
+
+	dm.downloadSingleFile(name, fileID, record)
+}
+
+func (dm *DownloadMonitor) processFolder(folderName, folderID string, record *DownloadRecord) {
+	fileList, err := dm.client.GetFileList(folderID, 100, 0)
+	if err != nil {
+		dm.logger.Error("[下载] 获取文件夹 %s 内容失败: %v", folderName, err)
+		dm.mu.Lock()
+		record.Status = StatusFailed
+		record.Error = "获取文件夹内容失败: " + err.Error()
+		record.EndTime = time.Now().Unix()
+		dm.mu.Unlock()
+		return
+	}
+
+	data, ok := fileList["data"].([]interface{})
+	if !ok {
+		dm.logger.Error("[下载] 文件夹 %s 响应格式错误", folderName)
+		dm.mu.Lock()
+		record.Status = StatusFailed
+		record.Error = "文件夹响应格式错误"
+		record.EndTime = time.Now().Unix()
+		dm.mu.Unlock()
+		return
+	}
+
+	dm.logger.Info("[下载] 文件夹 %s 包含 %d 个文件", folderName, len(data))
+
+	dm.mu.Lock()
+	record.Status = StatusCompleted
+	record.EndTime = time.Now().Unix()
+	dm.mu.Unlock()
+
+	for i, item := range data {
+		fileData, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		fileID, _ := fileData["fid"].(string)
+		fileName, _ := fileData["fn"].(string)
+		fc, _ := fileData["fc"].(string)
+
+		if fc == "0" {
+			dm.logger.Info("[下载] 跳过子文件夹: %s", fileName)
+			continue
+		}
+
+		dm.logger.Info("[下载] 处理文件夹 %s 中的文件 %d/%d: %s", folderName, i+1, len(data), fileName)
+
+		newRecord := &DownloadRecord{
+			InfoHash: folderID + "_" + fileID,
+			Name:     fileName,
+			FileID:   fileID,
+			Status:   StatusPending,
+		}
+
+		dm.mu.Lock()
+		dm.records[newRecord.InfoHash] = newRecord
+		dm.mu.Unlock()
+
+		go dm.downloadSingleFile(fileName, fileID, newRecord)
+	}
+}
+
+func (dm *DownloadMonitor) downloadSingleFile(name, fileID string, record *DownloadRecord) {
 
 	dm.mu.Lock()
 	record.Status = StatusDownloading
