@@ -242,6 +242,15 @@ func (dm *DownloadMonitor) checkTasks() {
 			skippedCount++
 			continue
 		}
+		if !exists {
+			record = &DownloadRecord{
+				InfoHash: infoHash,
+				Name:     name,
+				FileID:   fileID,
+				Status:   StatusPending,
+			}
+			dm.records[infoHash] = record
+		}
 		dm.mu.Unlock()
 
 		if cfg.DownloadMode == "video" {
