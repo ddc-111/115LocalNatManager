@@ -24,7 +24,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     const url = info.linkUrl;
     if (url && (url.startsWith('magnet:') || url.startsWith('http'))) {
       const settings = await chrome.storage.local.get(['serverUrl']);
-      const apiBase = settings.serverUrl || DEFAULT_API_BASE;
+      const apiBase = (settings.serverUrl || DEFAULT_API_BASE).replace(/\/+$/, '');
       
       try {
         const response = await fetch(`${apiBase}/api/download`, {
@@ -76,14 +76,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 async function handleAddDownload(request) {
-  const { url, data } = request;
+  const { data } = request;
   
   const settings = await chrome.storage.local.get(['serverUrl']);
-  const apiBase = settings.serverUrl || DEFAULT_API_BASE;
+  const apiBase = (settings.serverUrl || DEFAULT_API_BASE).replace(/\/+$/, '');
   
-  const fetchUrl = url || `${apiBase}/api/download`;
-  
-  const response = await fetch(fetchUrl, {
+  const response = await fetch(`${apiBase}/api/download`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
@@ -104,7 +102,7 @@ async function handleAddDownload(request) {
 
 async function handleAPI(request) {
   const settings = await chrome.storage.local.get(['serverUrl']);
-  const apiBase = settings.serverUrl || DEFAULT_API_BASE;
+  const apiBase = (settings.serverUrl || DEFAULT_API_BASE).replace(/\/+$/, '');
   const { method, path, body } = request;
   
   const options = {
