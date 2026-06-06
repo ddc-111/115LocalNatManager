@@ -368,6 +368,16 @@ func (dm *DownloadMonitor) downloadCompletedFile(task map[string]interface{}, re
 
 	dlData, ok := downloadInfo["data"].(map[string]interface{})
 	if !ok {
+		// 处理空数组情况
+		if _, isArray := downloadInfo["data"].([]interface{}); isArray {
+			dm.logger.Error("[下载] 步骤2失败: 下载链接为空，文件可能不可下载 %s", name)
+			dm.mu.Lock()
+			record.Status = StatusFailed
+			record.Error = "下载链接为空，文件可能不可下载"
+			record.EndTime = time.Now().Unix()
+			dm.mu.Unlock()
+			return
+		}
 		dm.logger.Error("[下载] 步骤2失败: 下载链接响应格式错误 %s, data类型: %T", name, downloadInfo["data"])
 		dm.mu.Lock()
 		record.Status = StatusFailed
