@@ -397,7 +397,20 @@ function renderTasks(tasks, downloadedFiles = {}) {
     
     const localStatus = downloadedFiles[task.name];
     let localBadge = '';
-    if (localStatus === 'completed') {
+    let errorInfo = '';
+    
+    if (typeof localStatus === 'object' && localStatus !== null) {
+      if (localStatus.status === 'completed') {
+        localBadge = '<span class="badge badge-success" title="已下载到本地"><i class="fas fa-hdd"></i> 本地</span>';
+      } else if (localStatus.status === 'downloading') {
+        localBadge = '<span class="badge badge-info" title="正在下载到本地"><i class="fas fa-spinner fa-spin"></i> 下载中</span>';
+      } else if (localStatus.status === 'failed') {
+        localBadge = '<span class="badge badge-danger" title="本地下载失败"><i class="fas fa-exclamation"></i> 失败</span>';
+        if (localStatus.error) {
+          errorInfo = `<div class="task-error" title="${escapeHtml(localStatus.error)}"><i class="fas fa-info-circle"></i> ${escapeHtml(localStatus.error)}</div>`;
+        }
+      }
+    } else if (localStatus === 'completed') {
       localBadge = '<span class="badge badge-success" title="已下载到本地"><i class="fas fa-hdd"></i> 本地</span>';
     } else if (localStatus === 'downloading') {
       localBadge = '<span class="badge badge-info" title="正在下载到本地"><i class="fas fa-spinner fa-spin"></i> 下载中</span>';
@@ -413,6 +426,7 @@ function renderTasks(tasks, downloadedFiles = {}) {
         <div class="task-info">
           <div class="task-name">${escapeHtml(task.name || '未知')} ${localBadge}</div>
           <div class="task-meta">${formatSize(task.size)} · ${statusText}</div>
+          ${errorInfo}
         </div>
         <div class="task-progress">
           <div class="progress-bar">
@@ -1414,20 +1428,38 @@ async function loadServerLogs(level = '') {
   if (!container) return;
   
   try {
-    const result = await apiGet(`/api/logs?level=${level}&limit=200`);
+    const result = await apiGet(`/api/logs?level=${level}&limit=500`);
     if (result.state && result.data?.length > 0) {
-      container.innerHTML = result.data.map(log => `
+      const logsHtml = result.data.map(log => `
         <div class="log-entry">
           <span class="log-time">${escapeHtml(log.time)}</span>
           <span class="log-level ${log.level}">${log.level}</span>
           <span class="log-message">${escapeHtml(log.message)}</span>
         </div>
       `).join('');
+      
+      container.innerHTML = `
+        <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+          <button class="btn btn-sm btn-secondary" id="copy-logs-btn">
+            <i class="fas fa-copy"></i> 复制日志
+          </button>
+        </div>
+        <div class="log-entries">${logsHtml}</div>
+      `;
+      
+      document.getElementById('copy-logs-btn')?.addEventListener('click', () => {
+        const logText = result.data.map(l => `[${l.time}] [${l.level}] ${l.message}`).join('\n');
+        navigator.clipboard.writeText(logText).then(() => {
+          showToast('日志已复制到剪贴板', 'success');
+        });
+      });
+      
+      container.querySelector('.log-entries').scrollTop = container.querySelector('.log-entries').scrollHeight;
     } else {
       container.innerHTML = '<div class="empty-state"><p>暂无日志</p></div>';
     }
   } catch (error) {
-    container.innerHTML = '<div class="empty-state"><p>加载日志失败</p></div>';
+    container.innerHTML = `<div class="empty-state"><p>加载日志失败: ${escapeHtml(error.message)}</p></div>`;
   }
 }
 

@@ -457,13 +457,17 @@ func (dm *DownloadMonitor) GetLocalDownloadTasks() []LocalDownloadTask {
 	return tasks
 }
 
-func (dm *DownloadMonitor) GetDownloadedFiles() map[string]string {
+func (dm *DownloadMonitor) GetDownloadedFiles() map[string]interface{} {
 	dm.mu.Lock()
 	defer dm.mu.Unlock()
 
-	result := make(map[string]string)
+	result := make(map[string]interface{})
 	for _, r := range dm.records {
-		result[r.Name] = string(r.Status)
+		result[r.Name] = map[string]interface{}{
+			"status": string(r.Status),
+			"error":  r.Error,
+			"name":   r.Name,
+		}
 	}
 	return result
 }

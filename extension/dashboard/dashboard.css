@@ -557,6 +557,21 @@ body {
   color: var(--warning);
 }
 
+.task-error {
+  font-size: 11px;
+  color: var(--danger);
+  margin-top: 4px;
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: help;
+}
+
+.task-error i {
+  margin-right: 4px;
+}
+
 /* File Grid */
 .file-grid {
   display: grid;
@@ -1108,9 +1123,9 @@ body {
 
 /* Log List */
 .log-list {
-  max-height: 500px;
+  max-height: 600px;
   overflow-y: auto;
-  font-family: monospace;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
   font-size: 12px;
   background: #1a1a2e;
   border-radius: var(--radius);
@@ -1121,6 +1136,8 @@ body {
   padding: 4px 8px;
   border-bottom: 1px solid rgba(255,255,255,0.05);
   line-height: 1.6;
+  word-break: break-all;
+  white-space: pre-wrap;
 }
 
 .log-entry:last-child {
@@ -1130,6 +1147,7 @@ body {
 .log-time {
   color: #6b7280;
   margin-right: 8px;
+  flex-shrink: 0;
 }
 
 .log-level {
@@ -1139,6 +1157,7 @@ body {
   margin-right: 8px;
   padding: 0 4px;
   border-radius: 3px;
+  flex-shrink: 0;
 }
 
 .log-level.INFO {
@@ -1158,6 +1177,7 @@ body {
 
 .log-message {
   color: #e5e7eb;
+  word-break: break-all;
 }
 
 .dir-browser {
