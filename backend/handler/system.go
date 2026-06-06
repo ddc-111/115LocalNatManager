@@ -3,8 +3,10 @@ package handler
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -47,20 +49,33 @@ func (h *SystemHandler) ListDirectory(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 快速检测目录是否可访问
-	if !isPathAccessible(dir) {
+	// 检测目录是否可访问，返回具体错误
+	if err := checkPathAccessible(dir); err != nil {
 		writeJSON(w, http.StatusRequestTimeout, model.APIResponse{
 			State:   false,
-			Message: "目录不可访问或超时，可能是SMB挂载不可用",
+			Message: fmt.Sprintf("目录不可访问: %v", err),
 		})
 		return
 	}
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, model.APIResponse{
-			State:   false,
-			Message: "无法读取目录: " + err.Error(),
+		// os.ReadDir 失败时，尝试用 ls 命令读取（兼容 SMB/NFS 挂载）
+		fallbackEntries, fallbackErr := listDirByCommand(dir)
+		if fallbackErr != nil {
+			writeJSON(w, http.StatusBadRequest, model.APIResponse{
+				State:   false,
+				Message: fmt.Sprintf("无法读取目录: %v (fallback: %v)", err, fallbackErr),
+			})
+			return
+		}
+		writeJSON(w, http.StatusOK, model.APIResponse{
+			State: true,
+			Data: map[string]interface{}{
+				"current": dir,
+				"parent":  filepath.Dir(dir),
+				"entries": fallbackEntries,
+			},
 		})
 		return
 	}
@@ -120,19 +135,25 @@ func isNetworkMount(path string) bool {
 }
 
 func isPathAccessible(path string) bool {
-	type result struct {
-		accessible bool
+	err := checkPathAccessible(path)
+	return err == nil
+}
+
+func checkPathAccessible(path string) error {
+	type checkResult struct {
+		err error
 	}
 
-	ch := make(chan result, 1)
+	ch := make(chan checkResult, 1)
 	go func() {
 		f, err := os.Open(path)
 		if err != nil {
-			ch <- result{false}
+			ch <- checkResult{err}
 			return
 		}
+		_, err = f.Readdirnames(1)
 		f.Close()
-		ch <- result{true}
+		ch <- checkResult{err}
 	}()
 
 	timeout := 3 * time.Second
@@ -142,10 +163,73 @@ func isPathAccessible(path string) bool {
 
 	select {
 	case r := <-ch:
-		return r.accessible
+		if r.err != nil {
+			// os.Open/Readdirnames 失败，尝试 ls 命令（兼容 SMB/NFS）
+			cmdErr := exec.Command("ls", path).Run()
+			if cmdErr == nil {
+				return nil
+			}
+			return fmt.Errorf("os: %v, ls: %v", r.err, cmdErr)
+		}
+		return nil
 	case <-time.After(timeout):
-		return false
+		return fmt.Errorf("目录访问超时 (%v)", timeout)
 	}
+}
+
+func listDirByCommand(dir string) ([]DirEntry, error) {
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.Command("cmd", "/c", "dir", "/a", dir)
+	} else if runtime.GOOS == "darwin" {
+		cmd = exec.Command("ls", "-1a", dir)
+	} else {
+		cmd = exec.Command("ls", "-1a", "--group-directories-first", dir)
+	}
+
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("ls命令执行失败: %v", err)
+	}
+
+	var entries []DirEntry
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || line == "." || line == ".." {
+			continue
+		}
+
+		fullPath := filepath.Join(dir, line)
+		isDir := false
+		var size int64
+
+		info, err := os.Stat(fullPath)
+		if err == nil {
+			isDir = info.IsDir()
+			size = info.Size()
+		} else {
+			isDir = !strings.Contains(line, ".")
+		}
+
+		entries = append(entries, DirEntry{
+			Name:  line,
+			Path:  fullPath,
+			IsDir: isDir,
+			Size:  size,
+		})
+	}
+
+	var dirs []DirEntry
+	var files []DirEntry
+	for _, e := range entries {
+		if e.IsDir {
+			dirs = append(dirs, e)
+		} else {
+			files = append(files, e)
+		}
+	}
+	return append(dirs, files...), nil
 }
 
 func (h *SystemHandler) GetDrives(w http.ResponseWriter, r *http.Request) {
@@ -299,11 +383,11 @@ func (h *SystemHandler) TestDirectory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 快速检测目录是否可访问
-	if !isPathAccessible(dir) {
-		writeJSON(w, http.StatusRequestTimeout, model.APIResponse{
+	// 检测目录是否可访问，返回具体错误
+	if err := checkPathAccessible(dir); err != nil {
+		writeJSON(w, http.StatusOK, model.APIResponse{
 			State:   false,
-			Message: "目录不可访问或超时，可能是SMB挂载不可用",
+			Message: fmt.Sprintf("目录不可访问: %v", err),
 		})
 		return
 	}
@@ -312,7 +396,7 @@ func (h *SystemHandler) TestDirectory(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeJSON(w, http.StatusOK, model.APIResponse{
 			State:   false,
-			Message: "目录不存在或无法访问",
+			Message: fmt.Sprintf("目录不存在或无法访问: %v", err),
 		})
 		return
 	}
@@ -325,6 +409,21 @@ func (h *SystemHandler) TestDirectory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 额外尝试读取目录内容确认可用性
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		// 尝试 ls 命令
+		_, fallbackErr := listDirByCommand(dir)
+		if fallbackErr != nil {
+			writeJSON(w, http.StatusOK, model.APIResponse{
+				State:   false,
+				Message: fmt.Sprintf("目录存在但无法读取内容: %v", err),
+			})
+			return
+		}
+	}
+
+	_ = entries
 	writeJSON(w, http.StatusOK, model.APIResponse{
 		State:   true,
 		Message: "目录有效",

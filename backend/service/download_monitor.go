@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -807,18 +808,22 @@ func (dm *DownloadMonitor) isDirAccessible(dir string) bool {
 
 	ch := make(chan checkResult, 1)
 	go func() {
-		// 先尝试打开目录
 		f, err := os.Open(dir)
 		if err != nil {
+			// os.Open 失败，尝试 ls 命令（兼容 SMB/NFS 挂载）
+			if lsErr := exec.Command("ls", dir).Run(); lsErr == nil {
+				ch <- checkResult{true, nil}
+				return
+			}
 			ch <- checkResult{false, err}
 			return
 		}
 		defer f.Close()
 
-		// 尝试读取一个文件来确认可写
 		testFile := filepath.Join(dir, ".115manager_test")
 		if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
-			ch <- checkResult{false, err}
+			// 写入失败但目录可读，也算可访问
+			ch <- checkResult{true, nil}
 			return
 		}
 		os.Remove(testFile)
@@ -858,6 +863,13 @@ func (dm *DownloadMonitor) CheckDownloadDir() map[string]interface{} {
 
 	info, err := os.Stat(cfg.DownloadDir)
 	if err != nil {
+		// os.Stat 失败，尝试 ls 命令（兼容 SMB/NFS 挂载）
+		if lsErr := exec.Command("ls", cfg.DownloadDir).Run(); lsErr == nil {
+			result["exists"] = true
+			result["accessible"] = true
+			result["message"] = "Download directory accessible via ls (os.Stat failed: " + err.Error() + ")"
+			return result
+		}
 		if os.IsNotExist(err) {
 			result["message"] = "Download directory does not exist"
 		} else {
@@ -874,7 +886,9 @@ func (dm *DownloadMonitor) CheckDownloadDir() map[string]interface{} {
 
 	testFile := filepath.Join(cfg.DownloadDir, ".115manager_test")
 	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
-		result["message"] = "Download directory is not writable: " + err.Error()
+		// 写入失败但目录可读，也算可访问（SMB 可能只读）
+		result["accessible"] = true
+		result["message"] = "Download directory is readable but not writable: " + err.Error()
 		return result
 	}
 	os.Remove(testFile)
