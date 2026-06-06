@@ -290,8 +290,11 @@ func (dm *DownloadMonitor) downloadCompletedFile(task map[string]interface{}, re
 		return
 	}
 
+	dm.logger.Info("File info response for %s: %v", name, fileInfo)
+
 	data, ok := fileInfo["data"].(map[string]interface{})
 	if !ok {
+		dm.logger.Error("Invalid file info response for %s, data type: %T", name, fileInfo["data"])
 		dm.mu.Lock()
 		record.Status = StatusFailed
 		record.Error = "Invalid file info response"
@@ -302,7 +305,7 @@ func (dm *DownloadMonitor) downloadCompletedFile(task map[string]interface{}, re
 
 	pickCode, _ := data["pick_code"].(string)
 	if pickCode == "" {
-		dm.logger.Warn("No pick_code for file: %s", name)
+		dm.logger.Warn("No pick_code for file: %s, data: %v", name, data)
 		dm.mu.Lock()
 		record.Status = StatusFailed
 		record.Error = "No pick_code"
@@ -310,6 +313,8 @@ func (dm *DownloadMonitor) downloadCompletedFile(task map[string]interface{}, re
 		dm.mu.Unlock()
 		return
 	}
+
+	dm.logger.Info("Got pick_code for %s: %s", name, pickCode)
 
 	downloadInfo, err := dm.client.GetDownloadURL(pickCode)
 	if err != nil {
@@ -322,8 +327,11 @@ func (dm *DownloadMonitor) downloadCompletedFile(task map[string]interface{}, re
 		return
 	}
 
+	dm.logger.Info("Download URL response for %s: %v", name, downloadInfo)
+
 	dlData, ok := downloadInfo["data"].(map[string]interface{})
 	if !ok {
+		dm.logger.Error("Invalid download info response for %s, data type: %T", name, downloadInfo["data"])
 		dm.mu.Lock()
 		record.Status = StatusFailed
 		record.Error = "Invalid download info response"
@@ -335,11 +343,13 @@ func (dm *DownloadMonitor) downloadCompletedFile(task map[string]interface{}, re
 	for _, v := range dlData {
 		fileData, ok := v.(map[string]interface{})
 		if !ok {
+			dm.logger.Error("Invalid file data type for %s: %T", name, v)
 			continue
 		}
 
 		urlObj, ok := fileData["url"].(map[string]interface{})
 		if !ok {
+			dm.logger.Error("Invalid url object for %s: %v", name, fileData["url"])
 			continue
 		}
 
@@ -355,11 +365,13 @@ func (dm *DownloadMonitor) downloadCompletedFile(task map[string]interface{}, re
 			record.FileName = fileName
 			dm.mu.Unlock()
 
+			dm.logger.Info("Starting download for %s: %s", name, downloadURL)
 			dm.StartFileDownload(downloadURL, fileName, record)
 			return
 		}
 	}
 
+	dm.logger.Error("Could not find download URL in response for %s", name)
 	dm.mu.Lock()
 	record.Status = StatusFailed
 	record.Error = "Could not get download URL"

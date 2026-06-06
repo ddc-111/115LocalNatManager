@@ -81,10 +81,27 @@ async function handleAddDownload(request) {
   const settings = await chrome.storage.local.get(['serverUrl']);
   const apiBase = (settings.serverUrl || DEFAULT_API_BASE).replace(/\/+$/, '');
   
+  let pathId = data.path_id || '';
+  
+  if (!pathId) {
+    try {
+      const configResp = await fetch(`${apiBase}/api/config`);
+      const configResult = await configResp.json();
+      if (configResult.state && configResult.data?.default_save_path) {
+        pathId = configResult.data.default_save_path;
+      }
+    } catch (e) {}
+  }
+  
+  const postData = { ...data };
+  if (pathId) {
+    postData.path_id = pathId;
+  }
+  
   const response = await fetch(`${apiBase}/api/download`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
+    body: JSON.stringify(postData)
   });
   
   if (!response.ok) {
