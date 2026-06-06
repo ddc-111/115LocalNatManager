@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bufio"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -110,6 +111,14 @@ func (h *SystemHandler) ListDirectory(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func isNetworkMount(path string) bool {
+	return strings.Contains(path, "/Volumes/") ||
+		strings.Contains(path, "\\\\") ||
+		strings.HasPrefix(path, "//") ||
+		strings.HasPrefix(path, "/mnt/") ||
+		strings.HasPrefix(path, "/media/")
+}
+
 func isPathAccessible(path string) bool {
 	type result struct {
 		accessible bool
@@ -117,7 +126,6 @@ func isPathAccessible(path string) bool {
 
 	ch := make(chan result, 1)
 	go func() {
-		// 尝试打开目录而不是读取内容
 		f, err := os.Open(path)
 		if err != nil {
 			ch <- result{false}
@@ -127,10 +135,15 @@ func isPathAccessible(path string) bool {
 		ch <- result{true}
 	}()
 
+	timeout := 3 * time.Second
+	if isNetworkMount(path) {
+		timeout = 30 * time.Second
+	}
+
 	select {
 	case r := <-ch:
 		return r.accessible
-	case <-time.After(3 * time.Second):
+	case <-time.After(timeout):
 		return false
 	}
 }
@@ -156,7 +169,6 @@ func (h *SystemHandler) GetDrives(w http.ResponseWriter, r *http.Request) {
 			IsDir: true,
 		})
 
-		// macOS: 列出 /Volumes 下的挂载点
 		if runtime.GOOS == "darwin" {
 			volumes, err := os.ReadDir("/Volumes")
 			if err == nil {
@@ -171,12 +183,81 @@ func (h *SystemHandler) GetDrives(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+
+		if runtime.GOOS == "linux" {
+			added := make(map[string]bool)
+			added["/"] = true
+
+			for _, mountDir := range []string{"/mnt", "/media"} {
+				entries, err := os.ReadDir(mountDir)
+				if err != nil {
+					continue
+				}
+				for _, entry := range entries {
+					if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+						continue
+					}
+					mountPath := filepath.Join(mountDir, entry.Name())
+					if !added[mountPath] {
+						drives = append(drives, DirEntry{
+							Name:  entry.Name(),
+							Path:  mountPath,
+							IsDir: true,
+						})
+						added[mountPath] = true
+					}
+				}
+			}
+
+			networkMounts := getLinuxNetworkMounts()
+			for _, mp := range networkMounts {
+				if !added[mp] {
+					name := filepath.Base(mp)
+					drives = append(drives, DirEntry{
+						Name:  name,
+						Path:  mp,
+						IsDir: true,
+					})
+					added[mp] = true
+				}
+			}
+		}
 	}
 
 	writeJSON(w, http.StatusOK, model.APIResponse{
 		State: true,
 		Data:  drives,
 	})
+}
+
+func getLinuxNetworkMounts() []string {
+	var mounts []string
+	f, err := os.Open("/proc/mounts")
+	if err != nil {
+		return mounts
+	}
+	defer f.Close()
+
+	networkFS := map[string]bool{
+		"nfs": true, "nfs4": true, "cifs": true, "smbfs": true,
+		"fuse.sshfs": true, "fuse.gvfsd-fuse": true, "fuse.s3fs": true,
+		"fuse.jmtpfs": true, "fuse.go-mtpfs": true, "fuse.bindfs": true,
+	}
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < 3 {
+			continue
+		}
+		mountPoint := fields[1]
+		fsType := fields[2]
+		if networkFS[fsType] && mountPoint != "/" && !strings.HasPrefix(mountPoint, "/proc") &&
+			!strings.HasPrefix(mountPoint, "/sys") && !strings.HasPrefix(mountPoint, "/dev") {
+			mounts = append(mounts, mountPoint)
+		}
+	}
+	return mounts
 }
 
 func (h *SystemHandler) CreateDirectory(w http.ResponseWriter, r *http.Request) {

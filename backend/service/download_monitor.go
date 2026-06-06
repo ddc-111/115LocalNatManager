@@ -795,8 +795,10 @@ func (dm *DownloadMonitor) isDirAccessible(dir string) bool {
 		return false
 	}
 
-	// 检查是否是 SMB 挂载目录
-	isSMB := strings.Contains(dir, "/Volumes/") || strings.Contains(dir, "\\\\")
+	// 检查是否是 SMB/网络挂载目录
+	isSMB := strings.Contains(dir, "/Volumes/") || strings.Contains(dir, "\\\\") ||
+		strings.HasPrefix(dir, "//") || strings.HasPrefix(dir, "/mnt/") ||
+		strings.HasPrefix(dir, "/media/")
 
 	type checkResult struct {
 		accessible bool
