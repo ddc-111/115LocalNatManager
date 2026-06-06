@@ -419,12 +419,15 @@
               <div class="form-group">
                 <label>本地下载目录</label>
                 <div class="input-group">
-                  <input type="text" id="download-dir" placeholder="点击浏览选择目录" readonly>
+                  <input type="text" id="download-dir" placeholder="点击浏览选择目录或手动输入路径">
                   <button class="btn btn-secondary" id="browse-download-dir-btn">
                     <i class="fas fa-folder-open"></i> 浏览
                   </button>
+                  <button class="btn btn-secondary" id="test-download-dir-btn">
+                    <i class="fas fa-check"></i> 测试
+                  </button>
                 </div>
-                <small class="form-help">已完成文件的本地保存目录</small>
+                <small class="form-help">已完成文件的本地保存目录（支持SMB挂载路径如 /Volumes/xxx）</small>
               </div>
               <div class="form-group">
                 <label>云下载默认保存文件夹</label>

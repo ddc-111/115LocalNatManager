@@ -800,36 +800,39 @@ func (dm *DownloadMonitor) isDirAccessible(dir string) bool {
 
 	type checkResult struct {
 		accessible bool
+		err        error
 	}
 
 	ch := make(chan checkResult, 1)
 	go func() {
-		info, err := os.Stat(dir)
+		// 先尝试打开目录
+		f, err := os.Open(dir)
 		if err != nil {
-			ch <- checkResult{false}
+			ch <- checkResult{false, err}
 			return
 		}
-		if !info.IsDir() {
-			ch <- checkResult{false}
-			return
-		}
+		defer f.Close()
 
+		// 尝试读取一个文件来确认可写
 		testFile := filepath.Join(dir, ".115manager_test")
 		if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
-			ch <- checkResult{false}
+			ch <- checkResult{false, err}
 			return
 		}
 		os.Remove(testFile)
-		ch <- checkResult{true}
+		ch <- checkResult{true, nil}
 	}()
 
 	timeout := 5 * time.Second
 	if isSMB {
-		timeout = 15 * time.Second
+		timeout = 30 * time.Second
 	}
 
 	select {
 	case result := <-ch:
+		if !result.accessible && result.err != nil {
+			dm.logger.Warn("[检测] 目录不可访问: %s, 错误: %v", dir, result.err)
+		}
 		return result.accessible
 	case <-time.After(timeout):
 		dm.logger.Warn("[检测] 目录访问超时: %s", dir)

@@ -130,6 +130,24 @@ function initEventListeners() {
     });
   });
   
+  document.getElementById('test-download-dir-btn')?.addEventListener('click', async () => {
+    const dir = document.getElementById('download-dir').value.trim();
+    if (!dir) {
+      showToast('请先输入目录路径', 'error');
+      return;
+    }
+    try {
+      const result = await apiGet(`/api/system/dirs/test?dir=${encodeURIComponent(dir)}`);
+      if (result.state) {
+        showToast('目录有效，可以访问', 'success');
+      } else {
+        showToast(result.message || '目录不可用', 'error');
+      }
+    } catch (error) {
+      showToast('测试失败: ' + error.message, 'error');
+    }
+  });
+  
   document.getElementById('browse-cloud-folder-btn').addEventListener('click', () => {
     openCloudFolderBrowser((folder) => {
       document.getElementById('default-save-path').value = folder.name;
