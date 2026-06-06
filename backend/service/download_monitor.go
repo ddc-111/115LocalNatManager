@@ -57,6 +57,7 @@ type DownloadMonitor struct {
 	localDownloads  map[string]*LocalDownloadTask
 	downloadSem     chan struct{}
 	dbPath          string
+	dirAccessible   bool
 }
 
 func NewDownloadMonitor(client *api.Client, cfg *config.Manager, logger *Logger) *DownloadMonitor {
@@ -71,10 +72,12 @@ func NewDownloadMonitor(client *api.Client, cfg *config.Manager, logger *Logger)
 		records:        make(map[string]*DownloadRecord),
 		localDownloads: make(map[string]*LocalDownloadTask),
 		dbPath:         dbPath,
+		dirAccessible:  true,
 	}
 
 	m.loadDB()
 	m.updateConcurrency()
+	m.checkDownloadDirStatus()
 
 	return m
 }
@@ -162,13 +165,31 @@ func (dm *DownloadMonitor) monitorLoop() {
 
 	dm.checkTasks()
 
+	dirCheckTicker := time.NewTicker(30 * time.Second)
+	defer dirCheckTicker.Stop()
+
 	for {
 		select {
 		case <-dm.stopCh:
 			return
 		case <-ticker.C:
 			dm.checkTasks()
+		case <-dirCheckTicker.C:
+			dm.checkDownloadDirStatus()
 		}
+	}
+}
+
+func (dm *DownloadMonitor) checkDownloadDirStatus() {
+	cfg := dm.config.GetConfig()
+	accessible := dm.isDirAccessible(cfg.DownloadDir)
+	
+	dm.mu.Lock()
+	dm.dirAccessible = accessible
+	dm.mu.Unlock()
+	
+	if !accessible {
+		dm.logger.Warn("[监控] 下载目录不可访问: %s", cfg.DownloadDir)
 	}
 }
 
@@ -524,6 +545,7 @@ func (dm *DownloadMonitor) GetStatus() map[string]interface{} {
 		"local_downloads":   len(dm.localDownloads),
 		"concurrency":       cfg.DownloadConcurrency,
 		"total_records":     len(dm.records),
+		"dir_accessible":    dm.dirAccessible,
 	}
 }
 
@@ -596,6 +618,25 @@ func (dm *DownloadMonitor) GetDownloadedFiles() map[string]interface{} {
 func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *LocalDownloadTask, record *DownloadRecord) {
 	cfg := dm.config.GetConfig()
 	destDir := cfg.DownloadDir
+	
+	// 检查下载目录是否可访问
+	if !dm.isDirAccessible(destDir) {
+		dm.logger.Warn("[下载] 下载目录不可访问: %s，等待目录恢复...", destDir)
+		dm.mu.Lock()
+		task.Status = "waiting"
+		task.Error = "下载目录不可访问，等待恢复"
+		dm.mu.Unlock()
+		
+		// 等待目录恢复
+		for {
+			time.Sleep(10 * time.Second)
+			if dm.isDirAccessible(destDir) {
+				dm.logger.Info("[下载] 下载目录已恢复: %s", destDir)
+				break
+			}
+		}
+	}
+
 	os.MkdirAll(destDir, 0755)
 
 	destPath := filepath.Join(destDir, filename)
@@ -620,6 +661,7 @@ func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *
 
 	dm.mu.Lock()
 	task.Size = resp.ContentLength
+	task.Status = "downloading"
 	dm.mu.Unlock()
 
 	file, err := os.Create(destPath)
@@ -646,12 +688,15 @@ func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *
 	speedTicker := time.NewTicker(time.Second)
 	defer speedTicker.Stop()
 
+	stopSpeed := make(chan struct{})
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
 		for {
 			select {
 			case <-task.Cancel:
+				return
+			case <-stopSpeed:
 				return
 			case <-speedTicker.C:
 				dm.mu.Lock()
@@ -673,6 +718,7 @@ func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *
 		select {
 		case <-task.Cancel:
 			dm.logger.Info("[下载] 下载被取消: %s", filename)
+			close(stopSpeed)
 			file.Close()
 			os.Remove(destPath)
 			return
@@ -692,6 +738,7 @@ func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *
 				}
 				dm.mu.Unlock()
 				dm.logger.Error("[下载] 写入文件失败 %s: %v", filename, writeErr)
+				close(stopSpeed)
 				os.Remove(destPath)
 				dm.saveDB()
 				return
@@ -709,6 +756,7 @@ func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *
 		}
 	}
 
+	close(stopSpeed)
 	<-done
 
 	dm.mu.Lock()
@@ -740,6 +788,27 @@ func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *
 	}
 	dm.mu.Unlock()
 	dm.saveDB()
+}
+
+func (dm *DownloadMonitor) isDirAccessible(dir string) bool {
+	if dir == "" {
+		return false
+	}
+	
+	info, err := os.Stat(dir)
+	if err != nil {
+		return false
+	}
+	if !info.IsDir() {
+		return false
+	}
+	
+	testFile := filepath.Join(dir, ".115manager_test")
+	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+		return false
+	}
+	os.Remove(testFile)
+	return true
 }
 
 func (dm *DownloadMonitor) CheckDownloadDir() map[string]interface{} {

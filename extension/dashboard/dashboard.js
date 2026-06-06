@@ -1393,9 +1393,9 @@ async function loadLocalDownloadTasks() {
 function renderLocalDownloadTasks(tasks) {
   const container = document.getElementById('local-download-tasks');
   container.innerHTML = tasks.map(task => {
-    const statusClass = task.status === 'completed' ? 'completed' : task.status === 'failed' ? 'failed' : task.status === 'cancelled' ? 'cancelled' : 'downloading';
-    const statusIcon = task.status === 'completed' ? 'check-circle' : task.status === 'failed' ? 'times-circle' : task.status === 'cancelled' ? 'ban' : 'spinner fa-spin';
-    const statusText = task.status === 'completed' ? '已完成' : task.status === 'failed' ? '失败' : task.status === 'cancelled' ? '已取消' : '下载中';
+    const statusClass = task.status === 'completed' ? 'completed' : task.status === 'failed' ? 'failed' : task.status === 'cancelled' ? 'cancelled' : task.status === 'waiting' ? 'waiting' : 'downloading';
+    const statusIcon = task.status === 'completed' ? 'check-circle' : task.status === 'failed' ? 'times-circle' : task.status === 'cancelled' ? 'ban' : task.status === 'waiting' ? 'pause-circle' : 'spinner fa-spin';
+    const statusText = task.status === 'completed' ? '已完成' : task.status === 'failed' ? '失败' : task.status === 'cancelled' ? '已取消' : task.status === 'waiting' ? '等待中' : '下载中';
     
     const speedText = task.speed ? formatSpeed(task.speed) : '';
     const sizeText = task.size ? formatSize(task.size) : '';
