@@ -173,32 +173,43 @@ func (dm *DownloadMonitor) monitorLoop() {
 func (dm *DownloadMonitor) checkTasks() {
 	cfg := dm.config.GetConfig()
 	if !cfg.LocalDownloadEnabled {
+		dm.logger.Info("[检测] 本地下载未启用，跳过检测")
 		return
 	}
 
 	dm.updateConcurrency()
 
+	dm.logger.Info("[检测] 开始检查云下载任务...")
+
 	result, err := dm.client.GetDownloadTaskList(1)
 	if err != nil {
-		dm.logger.Error("Failed to get task list: %v", err)
+		dm.logger.Error("[检测] 获取任务列表失败: %v", err)
 		return
 	}
 
 	data, ok := result["data"].(map[string]interface{})
 	if !ok {
+		dm.logger.Error("[检测] 任务列表响应格式错误")
 		return
 	}
 
 	tasks, ok := data["tasks"].([]interface{})
 	if !ok {
+		dm.logger.Error("[检测] 任务列表为空或格式错误")
 		return
 	}
+
+	dm.logger.Info("[检测] 获取到 %d 个任务", len(tasks))
 
 	videoExts := map[string]bool{
 		".mp4": true, ".mkv": true, ".avi": true, ".mov": true,
 		".wmv": true, ".flv": true, ".webm": true, ".m4v": true,
 		".ts": true, ".rmvb": true, ".rm": true, ".3gp": true,
 	}
+
+	completedCount := 0
+	pendingCount := 0
+	skippedCount := 0
 
 	for _, task := range tasks {
 		taskMap, ok := task.(map[string]interface{})
@@ -214,40 +225,53 @@ func (dm *DownloadMonitor) checkTasks() {
 		if status != 2 {
 			continue
 		}
+		completedCount++
 
 		dm.mu.Lock()
 		record, exists := dm.records[infoHash]
-		if exists && (record.Status == StatusCompleted || record.Status == StatusDownloading) {
+		if exists && record.Status == StatusCompleted {
 			dm.mu.Unlock()
+			skippedCount++
 			continue
 		}
-
-		if !exists {
-			record = &DownloadRecord{
-				InfoHash: infoHash,
-				Name:     name,
-				FileID:   fileID,
-				Status:   StatusPending,
-			}
-			dm.records[infoHash] = record
+		if exists && record.Status == StatusDownloading {
+			dm.mu.Unlock()
+			dm.logger.Info("[检测] 任务 %s 正在下载中，跳过", name)
+			skippedCount++
+			continue
 		}
 		dm.mu.Unlock()
 
 		if cfg.DownloadMode == "video" {
 			ext := strings.ToLower(filepath.Ext(name))
 			if !videoExts[ext] {
-				dm.logger.Info("Skipping non-video file: %s", name)
+				dm.logger.Info("[检测] 跳过非视频文件: %s (扩展名: %s)", name, ext)
 				dm.mu.Lock()
-				record.Status = StatusCompleted
-				record.EndTime = time.Now().Unix()
+				if record != nil {
+					record.Status = StatusCompleted
+					record.EndTime = time.Now().Unix()
+				} else {
+					record = &DownloadRecord{
+						InfoHash: infoHash,
+						Name:     name,
+						FileID:   fileID,
+						Status:   StatusCompleted,
+						EndTime:  time.Now().Unix(),
+					}
+					dm.records[infoHash] = record
+				}
 				dm.mu.Unlock()
+				skippedCount++
 				continue
 			}
 		}
 
+		pendingCount++
+		dm.logger.Info("[检测] 发现待下载任务: %s (file_id: %s)", name, fileID)
 		go dm.downloadWithSemaphore(taskMap, record)
 	}
 
+	dm.logger.Info("[检测] 检测完成: 共 %d 个已完成任务, %d 个待下载, %d 个已跳过", completedCount, pendingCount, skippedCount)
 	dm.saveDB()
 }
 
@@ -263,7 +287,7 @@ func (dm *DownloadMonitor) downloadCompletedFile(task map[string]interface{}, re
 	fileID, _ := task["file_id"].(string)
 
 	if fileID == "" {
-		dm.logger.Warn("No file_id for task: %s", name)
+		dm.logger.Error("[下载] 任务 %s 没有 file_id", name)
 		dm.mu.Lock()
 		record.Status = StatusFailed
 		record.Error = "No file_id"
@@ -272,32 +296,33 @@ func (dm *DownloadMonitor) downloadCompletedFile(task map[string]interface{}, re
 		return
 	}
 
-	dm.logger.Info("Processing completed task: %s (file_id: %s)", name, fileID)
+	dm.logger.Info("[下载] 开始处理任务: %s (file_id: %s)", name, fileID)
 
 	dm.mu.Lock()
 	record.Status = StatusDownloading
 	record.StartTime = time.Now().Unix()
 	dm.mu.Unlock()
 
+	dm.logger.Info("[下载] 步骤1: 获取文件信息...")
 	fileInfo, err := dm.client.GetFileInfo(fileID)
 	if err != nil {
-		dm.logger.Error("Failed to get file info for %s: %v", name, err)
+		dm.logger.Error("[下载] 步骤1失败: 获取文件信息失败 %s: %v", name, err)
 		dm.mu.Lock()
 		record.Status = StatusFailed
-		record.Error = err.Error()
+		record.Error = "获取文件信息失败: " + err.Error()
 		record.EndTime = time.Now().Unix()
 		dm.mu.Unlock()
 		return
 	}
 
-	dm.logger.Info("File info response for %s: %v", name, fileInfo)
+	dm.logger.Info("[下载] 步骤1完成: 文件信息响应 %s", name)
 
 	data, ok := fileInfo["data"].(map[string]interface{})
 	if !ok {
-		dm.logger.Error("Invalid file info response for %s, data type: %T", name, fileInfo["data"])
+		dm.logger.Error("[下载] 步骤1失败: 文件信息响应格式错误 %s, data类型: %T", name, fileInfo["data"])
 		dm.mu.Lock()
 		record.Status = StatusFailed
-		record.Error = "Invalid file info response"
+		record.Error = "文件信息响应格式错误"
 		record.EndTime = time.Now().Unix()
 		dm.mu.Unlock()
 		return
@@ -305,51 +330,54 @@ func (dm *DownloadMonitor) downloadCompletedFile(task map[string]interface{}, re
 
 	pickCode, _ := data["pick_code"].(string)
 	if pickCode == "" {
-		dm.logger.Warn("No pick_code for file: %s, data: %v", name, data)
+		dm.logger.Error("[下载] 步骤1失败: 文件 %s 没有 pick_code, data: %v", name, data)
 		dm.mu.Lock()
 		record.Status = StatusFailed
-		record.Error = "No pick_code"
+		record.Error = "没有 pick_code"
 		record.EndTime = time.Now().Unix()
 		dm.mu.Unlock()
 		return
 	}
 
-	dm.logger.Info("Got pick_code for %s: %s", name, pickCode)
+	dm.logger.Info("[下载] 步骤1成功: 获取到 pick_code: %s", pickCode)
 
+	dm.logger.Info("[下载] 步骤2: 获取下载链接...")
 	downloadInfo, err := dm.client.GetDownloadURL(pickCode)
 	if err != nil {
-		dm.logger.Error("Failed to get download URL for %s: %v", name, err)
+		dm.logger.Error("[下载] 步骤2失败: 获取下载链接失败 %s: %v", name, err)
 		dm.mu.Lock()
 		record.Status = StatusFailed
-		record.Error = err.Error()
+		record.Error = "获取下载链接失败: " + err.Error()
 		record.EndTime = time.Now().Unix()
 		dm.mu.Unlock()
 		return
 	}
 
-	dm.logger.Info("Download URL response for %s: %v", name, downloadInfo)
+	dm.logger.Info("[下载] 步骤2完成: 下载链接响应 %s: %v", name, downloadInfo)
 
 	dlData, ok := downloadInfo["data"].(map[string]interface{})
 	if !ok {
-		dm.logger.Error("Invalid download info response for %s, data type: %T", name, downloadInfo["data"])
+		dm.logger.Error("[下载] 步骤2失败: 下载链接响应格式错误 %s, data类型: %T", name, downloadInfo["data"])
 		dm.mu.Lock()
 		record.Status = StatusFailed
-		record.Error = "Invalid download info response"
+		record.Error = "下载链接响应格式错误"
 		record.EndTime = time.Now().Unix()
 		dm.mu.Unlock()
 		return
 	}
 
-	for _, v := range dlData {
+	dm.logger.Info("[下载] 步骤2成功: 解析下载链接数据，共 %d 个文件", len(dlData))
+
+	for k, v := range dlData {
 		fileData, ok := v.(map[string]interface{})
 		if !ok {
-			dm.logger.Error("Invalid file data type for %s: %T", name, v)
+			dm.logger.Error("[下载] 文件 %s 的数据格式错误: %T", k, v)
 			continue
 		}
 
 		urlObj, ok := fileData["url"].(map[string]interface{})
 		if !ok {
-			dm.logger.Error("Invalid url object for %s: %v", name, fileData["url"])
+			dm.logger.Error("[下载] 文件 %s 的 URL 格式错误: %v", k, fileData["url"])
 			continue
 		}
 
@@ -365,16 +393,16 @@ func (dm *DownloadMonitor) downloadCompletedFile(task map[string]interface{}, re
 			record.FileName = fileName
 			dm.mu.Unlock()
 
-			dm.logger.Info("Starting download for %s: %s", name, downloadURL)
+			dm.logger.Info("[下载] 步骤3: 开始下载文件 %s -> %s", name, fileName)
 			dm.StartFileDownload(downloadURL, fileName, record)
 			return
 		}
 	}
 
-	dm.logger.Error("Could not find download URL in response for %s", name)
+	dm.logger.Error("[下载] 步骤2失败: 在响应中找不到下载链接 %s", name)
 	dm.mu.Lock()
 	record.Status = StatusFailed
-	record.Error = "Could not get download URL"
+	record.Error = "找不到下载链接"
 	record.EndTime = time.Now().Unix()
 	dm.mu.Unlock()
 }
