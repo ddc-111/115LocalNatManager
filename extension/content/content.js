@@ -62,15 +62,15 @@ function createMagnetButton(magnetUrl) {
     btn.querySelector('span').textContent = 'Sending...';
 
     try {
-      // 通过background script发送请求
       const result = await new Promise((resolve, reject) => {
         chrome.runtime.sendMessage({
           action: 'addDownload',
-          url: API_BASE + '/api/download',
           data: { urls: magnetUrl }
         }, (response) => {
           if (chrome.runtime.lastError) {
             reject(new Error(chrome.runtime.lastError.message));
+          } else if (!response) {
+            reject(new Error('No response from background'));
           } else {
             resolve(response);
           }

@@ -17,7 +17,7 @@ func NewRouter(client *api.Client, cfg *config.Manager, monitor *service.Downloa
 	r.Use(CORSMiddleware)
 
 	tokenHandler := NewTokenHandler(cfg)
-	fileHandler := NewFileHandler(client)
+	fileHandler := NewFileHandler(client, monitor)
 	downloadHandler := NewDownloadHandler(client, monitor)
 	systemHandler := NewSystemHandler(cfg)
 
@@ -44,6 +44,9 @@ func NewRouter(client *api.Client, cfg *config.Manager, monitor *service.Downloa
 	api.HandleFunc("/files/search", fileHandler.SearchFiles).Methods("GET", "OPTIONS")
 	api.HandleFunc("/files/delete", fileHandler.DeleteFiles).Methods("POST", "OPTIONS")
 	api.HandleFunc("/files/move", fileHandler.MoveFiles).Methods("POST", "OPTIONS")
+	api.HandleFunc("/files/download", fileHandler.DownloadFile).Methods("POST", "OPTIONS")
+	api.HandleFunc("/files/download-url", fileHandler.GetDownloadURL).Methods("POST", "OPTIONS")
+	api.HandleFunc("/files/local-downloads", fileHandler.GetLocalDownloads).Methods("GET", "OPTIONS")
 	api.HandleFunc("/folders", fileHandler.CreateFolder).Methods("POST", "OPTIONS")
 
 	api.HandleFunc("/download", downloadHandler.AddTask).Methods("POST", "OPTIONS")
@@ -53,6 +56,7 @@ func NewRouter(client *api.Client, cfg *config.Manager, monitor *service.Downloa
 	api.HandleFunc("/download/quota", downloadHandler.GetQuota).Methods("GET", "OPTIONS")
 	api.HandleFunc("/download/monitor", downloadHandler.GetMonitorStatus).Methods("GET", "OPTIONS")
 	api.HandleFunc("/download/monitor", downloadHandler.ToggleMonitor).Methods("POST", "OPTIONS")
+	api.HandleFunc("/download/check-dir", downloadHandler.CheckDownloadDir).Methods("GET", "OPTIONS")
 
 	api.HandleFunc("/config", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, model.APIResponse{

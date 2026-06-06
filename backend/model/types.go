@@ -9,12 +9,13 @@ type TokenData struct {
 }
 
 type Config struct {
-	Port            string `json:"port"`
-	DownloadDir     string `json:"download_dir"`
-	MonitorEnabled  bool   `json:"monitor_enabled"`
-	MonitorInterval int    `json:"monitor_interval"`
-	DefaultSavePath string `json:"default_save_path"`
-	DefaultSaveName string `json:"default_save_name"`
+	Port                 string `json:"port"`
+	DownloadDir          string `json:"download_dir"`
+	MonitorEnabled       bool   `json:"monitor_enabled"`
+	MonitorInterval      int    `json:"monitor_interval"`
+	DefaultSavePath      string `json:"default_save_path"`
+	DefaultSaveName      string `json:"default_save_name"`
+	LocalDownloadEnabled bool   `json:"local_download_enabled"`
 }
 
 type APIResponse struct {
@@ -65,10 +66,11 @@ type SetTokenRequest struct {
 }
 
 type ConfigUpdateRequest struct {
-	Port            string `json:"port,omitempty"`
-	DownloadDir     string `json:"download_dir,omitempty"`
-	MonitorEnabled  *bool  `json:"monitor_enabled,omitempty"`
-	MonitorInterval *int   `json:"monitor_interval,omitempty"`
-	DefaultSavePath string `json:"default_save_path,omitempty"`
-	DefaultSaveName string `json:"default_save_name,omitempty"`
+	Port                 string `json:"port,omitempty"`
+	DownloadDir          string `json:"download_dir,omitempty"`
+	MonitorEnabled       *bool  `json:"monitor_enabled,omitempty"`
+	MonitorInterval      *int   `json:"monitor_interval,omitempty"`
+	DefaultSavePath      string `json:"default_save_path,omitempty"`
+	DefaultSaveName      string `json:"default_save_name,omitempty"`
+	LocalDownloadEnabled *bool  `json:"local_download_enabled,omitempty"`
 }

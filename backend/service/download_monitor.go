@@ -3,7 +3,6 @@ package service
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -16,20 +15,33 @@ import (
 )
 
 type DownloadMonitor struct {
-	client     *api.Client
-	config     *config.Manager
-	stopCh     chan struct{}
-	mu         sync.Mutex
-	running    bool
-	downloaded map[string]bool
+	client         *api.Client
+	config         *config.Manager
+	stopCh         chan struct{}
+	mu             sync.Mutex
+	running        bool
+	downloaded     map[string]bool
+	localDownloads map[string]*LocalDownloadTask
+}
+
+type LocalDownloadTask struct {
+	FileName    string  `json:"file_name"`
+	URL         string  `json:"url"`
+	Status      string  `json:"status"`
+	Progress    float64 `json:"progress"`
+	Size        int64   `json:"size"`
+	Downloaded  int64   `json:"downloaded"`
+	Error       string  `json:"error,omitempty"`
+	StartTime   int64   `json:"start_time"`
 }
 
 func NewDownloadMonitor(client *api.Client, cfg *config.Manager) *DownloadMonitor {
 	return &DownloadMonitor{
-		client:     client,
-		config:     cfg,
-		stopCh:     make(chan struct{}),
-		downloaded: make(map[string]bool),
+		client:         client,
+		config:         cfg,
+		stopCh:         make(chan struct{}),
+		downloaded:     make(map[string]bool),
+		localDownloads: make(map[string]*LocalDownloadTask),
 	}
 }
 
@@ -80,6 +92,11 @@ func (dm *DownloadMonitor) monitorLoop() {
 }
 
 func (dm *DownloadMonitor) checkTasks() {
+	cfg := dm.config.GetConfig()
+	if !cfg.LocalDownloadEnabled {
+		return
+	}
+
 	result, err := dm.client.GetDownloadTaskList(1)
 	if err != nil {
 		log.Printf("Failed to get task list: %v", err)
@@ -169,40 +186,10 @@ func (dm *DownloadMonitor) downloadCompletedFile(task map[string]interface{}) {
 
 		downloadURL, _ := urlObj["url"].(string)
 		if downloadURL != "" {
-			go dm.downloadFile(downloadURL, name)
+			dm.StartFileDownload(downloadURL, name)
 			return
 		}
 	}
-}
-
-func (dm *DownloadMonitor) downloadFile(url, filename string) {
-	cfg := dm.config.GetConfig()
-	destDir := cfg.DownloadDir
-	os.MkdirAll(destDir, 0755)
-
-	destPath := filepath.Join(destDir, filename)
-
-	resp, err := http.Get(url)
-	if err != nil {
-		log.Printf("Failed to download %s: %v", filename, err)
-		return
-	}
-	defer resp.Body.Close()
-
-	file, err := os.Create(destPath)
-	if err != nil {
-		log.Printf("Failed to create file %s: %v", destPath, err)
-		return
-	}
-	defer file.Close()
-
-	written, err := io.Copy(file, resp.Body)
-	if err != nil {
-		log.Printf("Failed to write file %s: %v", filename, err)
-		return
-	}
-
-	log.Printf("Downloaded %s (%d bytes) to %s", filename, written, destPath)
 }
 
 func (dm *DownloadMonitor) GetStatus() map[string]interface{} {
@@ -215,7 +202,149 @@ func (dm *DownloadMonitor) GetStatus() map[string]interface{} {
 		"download_dir":     cfg.DownloadDir,
 		"monitor_interval": cfg.MonitorInterval,
 		"downloaded_count": len(dm.downloaded),
+		"local_downloads":  len(dm.localDownloads),
 	}
+}
+
+func (dm *DownloadMonitor) StartFileDownload(url, filename string) {
+	dm.mu.Lock()
+	task := &LocalDownloadTask{
+		FileName:  filename,
+		URL:       url,
+		Status:    "downloading",
+		StartTime: time.Now().Unix(),
+	}
+	dm.localDownloads[filename] = task
+	dm.mu.Unlock()
+
+	go dm.downloadFileWithProgress(url, filename, task)
+}
+
+func (dm *DownloadMonitor) GetLocalDownloadTasks() []LocalDownloadTask {
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
+
+	tasks := make([]LocalDownloadTask, 0, len(dm.localDownloads))
+	for _, task := range dm.localDownloads {
+		tasks = append(tasks, *task)
+	}
+	return tasks
+}
+
+func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *LocalDownloadTask) {
+	cfg := dm.config.GetConfig()
+	destDir := cfg.DownloadDir
+	os.MkdirAll(destDir, 0755)
+
+	destPath := filepath.Join(destDir, filename)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		dm.mu.Lock()
+		task.Status = "failed"
+		task.Error = err.Error()
+		dm.mu.Unlock()
+		log.Printf("Failed to download %s: %v", filename, err)
+		return
+	}
+	defer resp.Body.Close()
+
+	dm.mu.Lock()
+	task.Size = resp.ContentLength
+	dm.mu.Unlock()
+
+	file, err := os.Create(destPath)
+	if err != nil {
+		dm.mu.Lock()
+		task.Status = "failed"
+		task.Error = err.Error()
+		dm.mu.Unlock()
+		log.Printf("Failed to create file %s: %v", destPath, err)
+		return
+	}
+	defer file.Close()
+
+	buf := make([]byte, 32*1024)
+	var downloaded int64
+	for {
+		n, err := resp.Body.Read(buf)
+		if n > 0 {
+			if _, writeErr := file.Write(buf[:n]); writeErr != nil {
+				dm.mu.Lock()
+				task.Status = "failed"
+				task.Error = writeErr.Error()
+				dm.mu.Unlock()
+				log.Printf("Failed to write file %s: %v", filename, writeErr)
+				return
+			}
+			downloaded += int64(n)
+			dm.mu.Lock()
+			task.Downloaded = downloaded
+			if task.Size > 0 {
+				task.Progress = float64(downloaded) / float64(task.Size) * 100
+			}
+			dm.mu.Unlock()
+		}
+		if err != nil {
+			break
+		}
+	}
+
+	dm.mu.Lock()
+	if downloaded > 0 {
+		task.Status = "completed"
+		task.Progress = 100
+		task.Downloaded = downloaded
+	} else {
+		task.Status = "failed"
+		task.Error = "No data received"
+	}
+	dm.mu.Unlock()
+
+	log.Printf("Downloaded %s (%d bytes) to %s", filename, downloaded, destPath)
+}
+
+func (dm *DownloadMonitor) CheckDownloadDir() map[string]interface{} {
+	cfg := dm.config.GetConfig()
+	result := map[string]interface{}{
+		"download_dir": cfg.DownloadDir,
+		"accessible":   false,
+		"exists":       false,
+		"writable":     false,
+	}
+
+	if cfg.DownloadDir == "" {
+		result["message"] = "Download directory not configured"
+		return result
+	}
+
+	info, err := os.Stat(cfg.DownloadDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			result["message"] = "Download directory does not exist"
+		} else {
+			result["message"] = "Cannot access download directory: " + err.Error()
+		}
+		return result
+	}
+	result["exists"] = true
+
+	if !info.IsDir() {
+		result["message"] = "Download path is not a directory"
+		return result
+	}
+
+	testFile := filepath.Join(cfg.DownloadDir, ".115manager_test")
+	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+		result["message"] = "Download directory is not writable: " + err.Error()
+		return result
+	}
+	os.Remove(testFile)
+	result["writable"] = true
+	result["accessible"] = true
+	result["message"] = "Download directory is ready"
+
+	return result
 }
 
 func formatFileSize(bytes int64) string {

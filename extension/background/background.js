@@ -78,12 +78,28 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 async function handleAddDownload(request) {
   const { url, data } = request;
   
-  const response = await fetch(url, {
+  const settings = await chrome.storage.local.get(['serverUrl']);
+  const apiBase = settings.serverUrl || DEFAULT_API_BASE;
+  
+  const fetchUrl = url || `${apiBase}/api/download`;
+  
+  const response = await fetch(fetchUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
   });
-  return response.json();
+  
+  if (!response.ok) {
+    const text = await response.text();
+    return { state: false, message: `Server error: ${response.status} ${text}` };
+  }
+  
+  try {
+    const text = await response.text();
+    return JSON.parse(text);
+  } catch (e) {
+    return { state: false, message: 'Invalid response from server' };
+  }
 }
 
 async function handleAPI(request) {

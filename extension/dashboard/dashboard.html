@@ -25,10 +25,6 @@
         </li>
         <li data-page="downloads">
           <i class="fas fa-cloud-download-alt"></i>
-          <span>下载任务</span>
-        </li>
-        <li data-page="downloads">
-          <i class="fas fa-cloud-download-alt"></i>
           <span>云下载任务</span>
         </li>
         <li data-page="local-downloads">
@@ -231,13 +227,36 @@
             <div class="card-header">
               <h2>服务下载任务</h2>
               <div class="header-actions">
+                <button class="btn btn-sm btn-primary" id="download-detection-settings-btn" title="下载检测设置">
+                  <i class="fas fa-cog"></i> 检测设置
+                </button>
+                <button class="btn btn-sm btn-secondary" id="toggle-auto-refresh-btn" title="自动刷新">
+                  <i class="fas fa-play"></i> 自动刷新
+                </button>
+                <button class="btn btn-sm btn-danger" id="clear-completed-downloads-btn" title="清除已完成">
+                  <i class="fas fa-broom"></i> 清除已完成
+                </button>
                 <button class="btn btn-sm btn-secondary" id="refresh-local-tasks-btn">
                   <i class="fas fa-sync-alt"></i> 刷新
                 </button>
               </div>
             </div>
             <div class="card-body">
-              <div class="info-banner">
+              <div class="download-stats" id="download-stats" style="display:none">
+                <div class="stat-item">
+                  <span class="stat-label">下载中:</span>
+                  <span class="stat-value" id="downloading-count">0</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">已完成:</span>
+                  <span class="stat-value" id="completed-count">0</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">失败:</span>
+                  <span class="stat-value" id="failed-count">0</span>
+                </div>
+              </div>
+              <div class="info-banner" id="download-dir-status">
                 <i class="fas fa-info-circle"></i>
                 <span>此列表显示从115云盘下载到本地服务器的文件进度</span>
               </div>
@@ -474,6 +493,42 @@
       <div class="modal-footer">
         <button class="btn btn-secondary modal-close">取消</button>
         <button class="btn btn-primary" id="confirm-folder-btn">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 下载检测设置模态框 -->
+  <div class="modal" id="download-detection-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>下载检测设置</h3>
+        <button class="btn btn-icon modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="local-download-enabled" checked>
+            <span>启用本地下载</span>
+          </label>
+          <small class="form-help">云下载完成后自动下载到本地目录</small>
+        </div>
+        <div class="form-group">
+          <label>检测时间间隔（秒）</label>
+          <input type="number" id="detection-interval" value="30" min="10" max="300">
+          <small class="form-help">检查云下载任务完成状态的频率</small>
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="auto-start-monitor" checked>
+            <span>添加任务时自动启动监控</span>
+          </label>
+          <small class="form-help">添加磁力链后自动启动下载监控</small>
+        </div>
+        <div id="detection-dir-status" class="alert" style="display:none"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-close">取消</button>
+        <button class="btn btn-primary" id="save-detection-settings-btn">保存设置</button>
       </div>
     </div>
   </div>

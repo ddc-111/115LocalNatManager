@@ -23,10 +23,11 @@ func NewManager(dataDir string) *Manager {
 	m := &Manager{
 		dataDir: dataDir,
 		config: model.Config{
-			Port:            "11580",
-			DownloadDir:     getDefaultDownloadDir(),
-			MonitorEnabled:  true,
-			MonitorInterval: 30,
+			Port:                 "11580",
+			DownloadDir:          getDefaultDownloadDir(),
+			MonitorEnabled:       true,
+			MonitorInterval:      30,
+			LocalDownloadEnabled: true,
 		},
 	}
 	os.MkdirAll(dataDir, 0755)
@@ -104,6 +105,9 @@ func (m *Manager) UpdateConfig(req model.ConfigUpdateRequest) {
 	}
 	if req.MonitorInterval != nil {
 		m.config.MonitorInterval = *req.MonitorInterval
+	}
+	if req.LocalDownloadEnabled != nil {
+		m.config.LocalDownloadEnabled = *req.LocalDownloadEnabled
 	}
 }
 

@@ -168,3 +168,11 @@ func (h *DownloadHandler) ToggleMonitor(w http.ResponseWriter, r *http.Request) 
 		Data:    h.monitor.GetStatus(),
 	})
 }
+
+func (h *DownloadHandler) CheckDownloadDir(w http.ResponseWriter, r *http.Request) {
+	result := h.monitor.CheckDownloadDir()
+	writeJSON(w, http.StatusOK, model.APIResponse{
+		State: true,
+		Data:  result,
+	})
+}

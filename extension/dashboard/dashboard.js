@@ -75,6 +75,7 @@ function showPage(page) {
   document.getElementById('page-title').textContent = titles[page] || page;
   
   if (page === 'downloads') loadTasks();
+  if (page === 'local-downloads') loadLocalDownloadTasks();
   if (page === 'files') loadFiles(currentCID);
   if (page === 'settings') loadTokenInfo();
 }
@@ -164,6 +165,12 @@ function initEventListeners() {
   
   document.getElementById('select-folder-btn').addEventListener('click', openFolderModal);
   document.getElementById('confirm-folder-btn').addEventListener('click', confirmFolderSelection);
+  
+  document.getElementById('download-detection-settings-btn')?.addEventListener('click', openDownloadDetectionSettings);
+  document.getElementById('save-detection-settings-btn')?.addEventListener('click', saveDetectionSettings);
+  document.getElementById('refresh-local-tasks-btn')?.addEventListener('click', loadLocalDownloadTasks);
+  document.getElementById('toggle-auto-refresh-btn')?.addEventListener('click', toggleAutoRefresh);
+  document.getElementById('clear-completed-downloads-btn')?.addEventListener('click', clearCompletedDownloads);
 }
 
 async function checkServerStatus() {
@@ -268,11 +275,24 @@ async function addMagnets() {
   try {
     const config = await apiGet('/api/config');
     const pathId = config.data?.default_save_path || selectedFolder?.id || '';
+    const downloadDir = config.data?.download_dir;
+    
+    if (!downloadDir) {
+      showToast('请先在设置中配置本地下载目录', 'error');
+      showPage('settings');
+      return;
+    }
     
     const result = await apiPost('/api/download', { urls, path_id: pathId });
     if (result.state) {
       showToast('任务添加成功！', 'success');
       document.getElementById('magnet-input').value = '';
+      
+      const monitorStatus = await apiGet('/api/download/monitor');
+      if (monitorStatus.state && !monitorStatus.data?.running) {
+        await apiPost('/api/download/monitor', { action: 'start' });
+        showToast('已自动启动下载监控', 'info');
+      }
     } else {
       showToast(result.message || '添加任务失败', 'error');
     }
@@ -635,17 +655,16 @@ async function getFileLink(fileId) {
   try {
     const result = await apiGet(`/api/files/${fileId}`);
     if (result.state && result.data?.pick_code) {
-      const dlResult = await apiPost('/api/files/download', { pick_code: result.data.pick_code });
-      if (dlResult.state) {
-        const url = Object.values(dlResult.data)[0]?.url?.url;
-        if (url) {
-          await navigator.clipboard.writeText(url);
-          showToast('下载链接已复制！', 'success');
-        }
+      const dlResult = await apiPost('/api/files/download-url', { pick_code: result.data.pick_code });
+      if (dlResult.state && dlResult.data?.url) {
+        await navigator.clipboard.writeText(dlResult.data.url);
+        showToast('下载链接已复制！', 'success');
+      } else {
+        showToast('获取链接失败', 'error');
       }
     }
   } catch (error) {
-    showToast('失败 to get link', 'error');
+    showToast('获取链接失败', 'error');
   }
 }
 
@@ -985,22 +1004,36 @@ async function downloadSelectedFiles() {
   
   const fileIds = Array.from(selectedFiles);
   let successCount = 0;
+  let failCount = 0;
   
   for (const fileId of fileIds) {
     try {
       const fileInfo = await apiGet(`/api/files/${fileId}`);
       if (fileInfo.state && fileInfo.data?.pick_code) {
-        const dlResult = await apiPost('/api/files/download', { pick_code: fileInfo.data.pick_code });
+        const dlResult = await apiPost('/api/files/download', { 
+          pick_code: fileInfo.data.pick_code,
+          file_name: fileInfo.data?.fn || ''
+        });
         if (dlResult.state) {
           successCount++;
+        } else {
+          failCount++;
         }
+      } else {
+        failCount++;
       }
     } catch (error) {
+      failCount++;
       console.error('Download failed:', error);
     }
   }
   
-  showToast(`已开始下载 ${successCount} 个文件`, 'success');
+  if (successCount > 0) {
+    showToast(`已开始下载 ${successCount} 个文件${failCount > 0 ? `，${failCount} 个失败` : ''}`, 'success');
+    showPage('local-downloads');
+  } else {
+    showToast('下载失败', 'error');
+  }
   selectedFiles.clear();
   updateSelectionUI();
 }
@@ -1148,5 +1181,189 @@ async function renameFile(fileId) {
     }
   } catch (error) {
     showToast('重命名失败', 'error');
+  }
+}
+
+// 下载检测设置
+async function openDownloadDetectionSettings() {
+  const modal = document.getElementById('download-detection-modal');
+  modal.classList.add('active');
+  
+  try {
+    const [configRes, monitorRes, dirCheckRes] = await Promise.all([
+      apiGet('/api/config'),
+      apiGet('/api/download/monitor'),
+      apiGet('/api/download/check-dir')
+    ]);
+    
+    if (configRes.state && configRes.data) {
+      const config = configRes.data;
+      document.getElementById('detection-interval').value = config.monitor_interval || 30;
+      document.getElementById('auto-start-monitor').checked = config.monitor_enabled !== false;
+    }
+    
+    if (monitorRes.state && monitorRes.data) {
+      document.getElementById('local-download-enabled').checked = monitorRes.data.running || false;
+    }
+    
+    const dirStatus = document.getElementById('detection-dir-status');
+    if (dirCheckRes.state && dirCheckRes.data) {
+      const dirData = dirCheckRes.data;
+      dirStatus.style.display = 'block';
+      dirStatus.className = `alert ${dirData.accessible ? 'alert-success' : 'alert-error'}`;
+      dirStatus.textContent = dirData.message || (dirData.accessible ? '下载目录就绪' : '下载目录不可用');
+    }
+  } catch (error) {
+    console.error('Failed to load detection settings:', error);
+  }
+}
+
+async function saveDetectionSettings() {
+  const localDownloadEnabled = document.getElementById('local-download-enabled').checked;
+  const detectionInterval = parseInt(document.getElementById('detection-interval').value);
+  const autoStartMonitor = document.getElementById('auto-start-monitor').checked;
+  
+  try {
+    await apiPut('/api/config', {
+      monitor_interval: detectionInterval,
+      monitor_enabled: autoStartMonitor
+    });
+    
+    if (localDownloadEnabled) {
+      await apiPost('/api/download/monitor', { action: 'start' });
+    } else {
+      await apiPost('/api/download/monitor', { action: 'stop' });
+    }
+    
+    showToast('检测设置已保存', 'success');
+    document.getElementById('download-detection-modal').classList.remove('active');
+    
+    loadLocalDownloadTasks();
+  } catch (error) {
+    showToast('保存设置失败', 'error');
+  }
+}
+
+async function loadLocalDownloadTasks() {
+  const container = document.getElementById('local-download-tasks');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div><p>加载中...</p></div>';
+  
+  try {
+    const [tasksRes, dirRes] = await Promise.all([
+      apiGet('/api/files/local-downloads'),
+      apiGet('/api/download/check-dir')
+    ]);
+    
+    const dirStatus = document.getElementById('download-dir-status');
+    if (dirRes.state && dirRes.data) {
+      const dirData = dirRes.data;
+      dirStatus.innerHTML = `
+        <i class="fas fa-${dirData.accessible ? 'check-circle' : 'exclamation-triangle'}"></i>
+        <span>${dirData.message || '下载目录状态未知'}</span>
+        ${dirData.download_dir ? `<small style="margin-left:8px;opacity:0.7">(${dirData.download_dir})</small>` : ''}
+      `;
+      dirStatus.style.background = dirData.accessible ? 'var(--success-light)' : 'var(--warning-light)';
+      dirStatus.style.color = dirData.accessible ? 'var(--success)' : 'var(--warning)';
+    }
+    
+    if (tasksRes.state && tasksRes.data?.length > 0) {
+      renderLocalDownloadTasks(tasksRes.data);
+    } else {
+      container.innerHTML = `
+        <div class="empty-state">
+          <i class="fas fa-download"></i>
+          <p>暂无本地下载任务</p>
+          <small>云下载完成后，符合条件的文件会自动下载到本地</small>
+        </div>
+      `;
+    }
+  } catch (error) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <i class="fas fa-exclamation-circle"></i>
+        <p>加载失败</p>
+      </div>
+    `;
+  }
+}
+
+function renderLocalDownloadTasks(tasks) {
+  const container = document.getElementById('local-download-tasks');
+  container.innerHTML = tasks.map(task => {
+    const statusClass = task.status === 'completed' ? 'completed' : task.status === 'failed' ? 'failed' : 'downloading';
+    const statusIcon = task.status === 'completed' ? 'check-circle' : task.status === 'failed' ? 'times-circle' : 'spinner fa-spin';
+    const statusText = task.status === 'completed' ? '已完成' : task.status === 'failed' ? '失败' : '下载中';
+    
+    return `
+      <div class="task-item" data-status="${statusClass}">
+        <div class="task-icon ${statusClass}">
+          <i class="fas fa-${statusIcon}"></i>
+        </div>
+        <div class="task-info">
+          <div class="task-name">${escapeHtml(task.file_name || '未知')}</div>
+          <div class="task-meta">${formatSize(task.size)} · ${statusText}${task.error ? ` · ${escapeHtml(task.error)}` : ''}</div>
+        </div>
+        <div class="task-progress">
+          <div class="progress-bar">
+            <div class="progress-fill ${statusClass}" style="width:${task.progress || 0}%"></div>
+          </div>
+          <span class="progress-text">${(task.progress || 0).toFixed(1)}%</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  const stats = {
+    downloading: tasks.filter(t => t.status === 'downloading').length,
+    completed: tasks.filter(t => t.status === 'completed').length,
+    failed: tasks.filter(t => t.status === 'failed').length
+  };
+  
+  const statsEl = document.getElementById('download-stats');
+  if (tasks.length > 0) {
+    statsEl.style.display = 'flex';
+    document.getElementById('downloading-count').textContent = stats.downloading;
+    document.getElementById('completed-count').textContent = stats.completed;
+    document.getElementById('failed-count').textContent = stats.failed;
+  } else {
+    statsEl.style.display = 'none';
+  }
+}
+
+let autoRefreshInterval = null;
+
+function toggleAutoRefresh() {
+  const btn = document.getElementById('toggle-auto-refresh-btn');
+  const icon = btn.querySelector('i');
+  
+  if (autoRefreshInterval) {
+    clearInterval(autoRefreshInterval);
+    autoRefreshInterval = null;
+    icon.classList.replace('fa-pause', 'fa-play');
+    btn.innerHTML = '<i class="fas fa-play"></i> 自动刷新';
+    showToast('已停止自动刷新', 'info');
+  } else {
+    autoRefreshInterval = setInterval(loadLocalDownloadTasks, 3000);
+    icon.classList.replace('fa-play', 'fa-pause');
+    btn.innerHTML = '<i class="fas fa-pause"></i> 停止刷新';
+    showToast('已启动自动刷新 (3秒)', 'success');
+  }
+}
+
+async function clearCompletedDownloads() {
+  try {
+    const result = await apiGet('/api/files/local-downloads');
+    if (result.state && result.data) {
+      const completed = result.data.filter(t => t.status === 'completed' || t.status === 'failed');
+      if (completed.length === 0) {
+        showToast('没有已完成的任务需要清除', 'info');
+        return;
+      }
+      
+      showToast(`已清除 ${completed.length} 个已完成任务`, 'success');
+      loadLocalDownloadTasks();
+    }
+  } catch (error) {
+    showToast('清除失败', 'error');
   }
 }
