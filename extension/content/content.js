@@ -1,23 +1,5 @@
 const MAGNET_REGEX = /magnet:\?xt=urn:[a-zA-Z0-9]+:[a-zA-Z0-9]{32,}/gi;
-let API_BASE = 'http://localhost:11580';
 let lastClipboardContent = '';
-
-async function loadApiBase() {
-  try {
-    const settings = await chrome.storage.local.get(['serverUrl']);
-    if (settings.serverUrl) {
-      API_BASE = settings.serverUrl;
-    }
-  } catch (e) {}
-}
-
-loadApiBase();
-
-chrome.storage.onChanged.addListener((changes) => {
-  if (changes.serverUrl) {
-    API_BASE = changes.serverUrl.newValue || 'http://localhost:11580';
-  }
-});
 
 function scanForMagnets() {
   const pageText = document.body.innerText;
@@ -41,15 +23,21 @@ function scanForMagnets() {
 
 async function addDownloadTask(url) {
   try {
-    const settings = await chrome.storage.local.get(['serverUrl']);
-    const apiBase = settings.serverUrl || API_BASE;
-    
-    const response = await fetch(`${apiBase}/api/download`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ urls: url })
+    const result = await new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({
+        action: 'addDownload',
+        data: { urls: url }
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+        } else if (!response) {
+          reject(new Error('No response from background'));
+        } else {
+          resolve(response);
+        }
+      });
     });
-    return await response.json();
+    return result;
   } catch (error) {
     return { state: false, message: error.message };
   }
