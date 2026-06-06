@@ -124,27 +124,27 @@ function initEventListeners() {
   document.getElementById('delete-selected-btn').addEventListener('click', deleteSelectedFiles);
   
   // 目录浏览器按钮
-  document.getElementById('browse-download-dir-btn').addEventListener('click', () => {
-    openDirectoryBrowser('选择下载目录', (path) => {
-      document.getElementById('download-dir').value = path;
-    });
-  });
-  
   document.getElementById('test-download-dir-btn')?.addEventListener('click', async () => {
     const dir = document.getElementById('download-dir').value.trim();
     if (!dir) {
       showToast('请先输入目录路径', 'error');
       return;
     }
+    const btn = document.getElementById('test-download-dir-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 测试中';
     try {
-      const result = await apiGet(`/api/system/dirs/test?dir=${encodeURIComponent(dir)}`);
+      const result = await apiPost('/api/system/dirs/test-write', { path: dir });
       if (result.state) {
-        showToast('目录有效，可以访问', 'success');
+        showToast('目录可写入，测试通过', 'success');
       } else {
         showToast(result.message || '目录不可用', 'error');
       }
     } catch (error) {
       showToast('测试失败: ' + error.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-check"></i> 测试写入';
     }
   });
   

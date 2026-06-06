@@ -383,7 +383,6 @@ func (h *SystemHandler) TestDirectory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 检测目录是否可访问，返回具体错误
 	if err := checkPathAccessible(dir); err != nil {
 		writeJSON(w, http.StatusOK, model.APIResponse{
 			State:   false,
@@ -409,10 +408,8 @@ func (h *SystemHandler) TestDirectory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 额外尝试读取目录内容确认可用性
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		// 尝试 ls 命令
 		_, fallbackErr := listDirByCommand(dir)
 		if fallbackErr != nil {
 			writeJSON(w, http.StatusOK, model.APIResponse{
@@ -430,6 +427,54 @@ func (h *SystemHandler) TestDirectory(w http.ResponseWriter, r *http.Request) {
 		Data: map[string]interface{}{
 			"path": dir,
 			"name": info.Name(),
+		},
+	})
+}
+
+func (h *SystemHandler) TestDirectoryWrite(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Path string `json:"path"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{
+			State:   false,
+			Message: "无效请求",
+		})
+		return
+	}
+
+	dir := req.Path
+	if dir == "" {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{
+			State:   false,
+			Message: "目录路径不能为空",
+		})
+		return
+	}
+
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		writeJSON(w, http.StatusOK, model.APIResponse{
+			State:   false,
+			Message: fmt.Sprintf("创建目录失败: %v", err),
+		})
+		return
+	}
+
+	testFile := filepath.Join(dir, ".115manager_test")
+	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+		writeJSON(w, http.StatusOK, model.APIResponse{
+			State:   false,
+			Message: fmt.Sprintf("目录不可写: %v", err),
+		})
+		return
+	}
+	os.Remove(testFile)
+
+	writeJSON(w, http.StatusOK, model.APIResponse{
+		State:   true,
+		Message: "目录可写入，测试通过",
+		Data: map[string]interface{}{
+			"path": dir,
 		},
 	})
 }

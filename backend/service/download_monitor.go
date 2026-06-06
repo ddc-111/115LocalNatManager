@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -808,22 +807,14 @@ func (dm *DownloadMonitor) isDirAccessible(dir string) bool {
 
 	ch := make(chan checkResult, 1)
 	go func() {
-		f, err := os.Open(dir)
-		if err != nil {
-			// os.Open 失败，尝试 ls 命令（兼容 SMB/NFS 挂载）
-			if lsErr := exec.Command("ls", dir).Run(); lsErr == nil {
-				ch <- checkResult{true, nil}
-				return
-			}
+		// 只做写入测试（MkdirAll + WriteFile），不依赖 os.Open/Readdir
+		if err := os.MkdirAll(dir, 0755); err != nil {
 			ch <- checkResult{false, err}
 			return
 		}
-		defer f.Close()
-
 		testFile := filepath.Join(dir, ".115manager_test")
 		if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
-			// 写入失败但目录可读，也算可访问
-			ch <- checkResult{true, nil}
+			ch <- checkResult{false, err}
 			return
 		}
 		os.Remove(testFile)
@@ -861,32 +852,14 @@ func (dm *DownloadMonitor) CheckDownloadDir() map[string]interface{} {
 		return result
 	}
 
-	info, err := os.Stat(cfg.DownloadDir)
-	if err != nil {
-		// os.Stat 失败，尝试 ls 命令（兼容 SMB/NFS 挂载）
-		if lsErr := exec.Command("ls", cfg.DownloadDir).Run(); lsErr == nil {
-			result["exists"] = true
-			result["accessible"] = true
-			result["message"] = "Download directory accessible via ls (os.Stat failed: " + err.Error() + ")"
-			return result
-		}
-		if os.IsNotExist(err) {
-			result["message"] = "Download directory does not exist"
-		} else {
-			result["message"] = "Cannot access download directory: " + err.Error()
-		}
+	if err := os.MkdirAll(cfg.DownloadDir, 0755); err != nil {
+		result["message"] = "Cannot create download directory: " + err.Error()
 		return result
 	}
 	result["exists"] = true
 
-	if !info.IsDir() {
-		result["message"] = "Download path is not a directory"
-		return result
-	}
-
 	testFile := filepath.Join(cfg.DownloadDir, ".115manager_test")
 	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
-		// 写入失败但目录可读，也算可访问（SMB 可能只读）
 		result["accessible"] = true
 		result["message"] = "Download directory is readable but not writable: " + err.Error()
 		return result
