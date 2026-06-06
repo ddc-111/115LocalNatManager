@@ -54,7 +54,7 @@ func (dm *DownloadMonitor) Start() {
 	dm.mu.Unlock()
 
 	go dm.monitorLoop()
-	log.Println("Download monitor started")
+	dm.logger.Info("Download monitor started")
 }
 
 func (dm *DownloadMonitor) Stop() {
@@ -65,7 +65,7 @@ func (dm *DownloadMonitor) Stop() {
 	}
 	close(dm.stopCh)
 	dm.running = false
-	log.Println("Download monitor stopped")
+	dm.logger.Info("Download monitor stopped")
 }
 
 func (dm *DownloadMonitor) IsRunning() bool {
