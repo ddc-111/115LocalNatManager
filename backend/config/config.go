@@ -29,6 +29,7 @@ func NewManager(dataDir string) *Manager {
 			MonitorInterval:      30,
 			LocalDownloadEnabled: true,
 			DownloadMode:         "all",
+			DownloadConcurrency:  5,
 		},
 	}
 	os.MkdirAll(dataDir, 0755)
@@ -88,6 +89,10 @@ func (m *Manager) GetConfig() model.Config {
 	return m.config
 }
 
+func (m *Manager) GetDataDir() string {
+	return m.dataDir
+}
+
 func (m *Manager) UpdateConfig(req model.ConfigUpdateRequest) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -112,6 +117,9 @@ func (m *Manager) UpdateConfig(req model.ConfigUpdateRequest) {
 	}
 	if req.DownloadMode != "" {
 		m.config.DownloadMode = req.DownloadMode
+	}
+	if req.DownloadConcurrency != nil {
+		m.config.DownloadConcurrency = *req.DownloadConcurrency
 	}
 }
 

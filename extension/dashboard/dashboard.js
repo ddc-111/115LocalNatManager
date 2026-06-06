@@ -45,6 +45,9 @@ async function loadSettings() {
       if (config.download_mode) {
         document.getElementById('download-mode').value = config.download_mode;
       }
+      if (config.download_concurrency) {
+        document.getElementById('download-concurrency').value = config.download_concurrency;
+      }
       if (config.monitor_enabled !== undefined) {
         document.getElementById('auto-monitor').checked = config.monitor_enabled;
       }
@@ -866,7 +869,8 @@ async function saveConfig() {
     default_save_name: document.getElementById('default-save-path').value || '',
     monitor_interval: parseInt(document.getElementById('monitor-interval').value),
     monitor_enabled: document.getElementById('auto-monitor').checked,
-    download_mode: document.getElementById('download-mode').value
+    download_mode: document.getElementById('download-mode').value,
+    download_concurrency: parseInt(document.getElementById('download-concurrency').value)
   };
   
   try {

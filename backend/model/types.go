@@ -17,6 +17,7 @@ type Config struct {
 	DefaultSaveName      string `json:"default_save_name"`
 	LocalDownloadEnabled bool   `json:"local_download_enabled"`
 	DownloadMode         string `json:"download_mode"`
+	DownloadConcurrency  int    `json:"download_concurrency"`
 }
 
 type APIResponse struct {
@@ -75,4 +76,5 @@ type ConfigUpdateRequest struct {
 	DefaultSaveName      string `json:"default_save_name,omitempty"`
 	LocalDownloadEnabled *bool  `json:"local_download_enabled,omitempty"`
 	DownloadMode         string `json:"download_mode,omitempty"`
+	DownloadConcurrency  *int   `json:"download_concurrency,omitempty"`
 }

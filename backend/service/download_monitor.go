@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -12,16 +13,24 @@ import (
 	"115localnatmanager/config"
 )
 
-type DownloadMonitor struct {
-	client         *api.Client
-	config         *config.Manager
-	logger         *Logger
-	stopCh         chan struct{}
-	mu             sync.Mutex
-	running        bool
-	downloaded     map[string]bool
-	localDownloads map[string]*LocalDownloadTask
-	downloadedFiles map[string]string
+type DownloadStatus string
+
+const (
+	StatusPending    DownloadStatus = "pending"
+	StatusDownloading DownloadStatus = "downloading"
+	StatusCompleted  DownloadStatus = "completed"
+	StatusFailed     DownloadStatus = "failed"
+)
+
+type DownloadRecord struct {
+	InfoHash    string         `json:"info_hash"`
+	Name        string         `json:"name"`
+	FileID      string         `json:"file_id"`
+	Status      DownloadStatus `json:"status"`
+	Error       string         `json:"error,omitempty"`
+	StartTime   int64          `json:"start_time,omitempty"`
+	EndTime     int64          `json:"end_time,omitempty"`
+	FileName    string         `json:"file_name,omitempty"`
 }
 
 type LocalDownloadTask struct {
@@ -35,16 +44,82 @@ type LocalDownloadTask struct {
 	StartTime   int64   `json:"start_time"`
 }
 
+type DownloadMonitor struct {
+	client          *api.Client
+	config          *config.Manager
+	logger          *Logger
+	stopCh          chan struct{}
+	mu              sync.Mutex
+	running         bool
+	records         map[string]*DownloadRecord
+	localDownloads  map[string]*LocalDownloadTask
+	downloadSem     chan struct{}
+	dbPath          string
+}
+
 func NewDownloadMonitor(client *api.Client, cfg *config.Manager, logger *Logger) *DownloadMonitor {
-	return &DownloadMonitor{
-		client:          client,
-		config:          cfg,
-		logger:          logger,
-		stopCh:          make(chan struct{}),
-		downloaded:      make(map[string]bool),
-		localDownloads:  make(map[string]*LocalDownloadTask),
-		downloadedFiles: make(map[string]string),
+	dataDir := cfg.GetDataDir()
+	dbPath := filepath.Join(dataDir, "downloads.json")
+
+	m := &DownloadMonitor{
+		client:         client,
+		config:         cfg,
+		logger:         logger,
+		stopCh:         make(chan struct{}),
+		records:        make(map[string]*DownloadRecord),
+		localDownloads: make(map[string]*LocalDownloadTask),
+		dbPath:         dbPath,
 	}
+
+	m.loadDB()
+	m.updateConcurrency()
+
+	return m
+}
+
+func (dm *DownloadMonitor) loadDB() {
+	data, err := os.ReadFile(dm.dbPath)
+	if err != nil {
+		return
+	}
+
+	var records []*DownloadRecord
+	if err := json.Unmarshal(data, &records); err != nil {
+		return
+	}
+
+	for _, r := range records {
+		dm.records[r.InfoHash] = r
+	}
+	dm.logger.Info("Loaded %d download records from database", len(dm.records))
+}
+
+func (dm *DownloadMonitor) saveDB() {
+	dm.mu.Lock()
+	records := make([]*DownloadRecord, 0, len(dm.records))
+	for _, r := range dm.records {
+		records = append(records, r)
+	}
+	dm.mu.Unlock()
+
+	data, err := json.MarshalIndent(records, "", "  ")
+	if err != nil {
+		dm.logger.Error("Failed to marshal download records: %v", err)
+		return
+	}
+
+	if err := os.WriteFile(dm.dbPath, data, 0644); err != nil {
+		dm.logger.Error("Failed to save download records: %v", err)
+	}
+}
+
+func (dm *DownloadMonitor) updateConcurrency() {
+	cfg := dm.config.GetConfig()
+	concurrency := cfg.DownloadConcurrency
+	if concurrency <= 0 {
+		concurrency = 5
+	}
+	dm.downloadSem = make(chan struct{}, concurrency)
 }
 
 func (dm *DownloadMonitor) Start() {
@@ -83,6 +158,8 @@ func (dm *DownloadMonitor) monitorLoop() {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
+	dm.checkTasks()
+
 	for {
 		select {
 		case <-dm.stopCh:
@@ -98,6 +175,8 @@ func (dm *DownloadMonitor) checkTasks() {
 	if !cfg.LocalDownloadEnabled {
 		return
 	}
+
+	dm.updateConcurrency()
 
 	result, err := dm.client.GetDownloadTaskList(1)
 	if err != nil {
@@ -130,65 +209,126 @@ func (dm *DownloadMonitor) checkTasks() {
 		status, _ := taskMap["status"].(float64)
 		infoHash, _ := taskMap["info_hash"].(string)
 		name, _ := taskMap["name"].(string)
+		fileID, _ := taskMap["file_id"].(string)
 
-		if status == 2 {
-			dm.mu.Lock()
-			if dm.downloaded[infoHash] {
+		if status != 2 {
+			continue
+		}
+
+		dm.mu.Lock()
+		record, exists := dm.records[infoHash]
+		if exists && (record.Status == StatusCompleted || record.Status == StatusDownloading) {
+			dm.mu.Unlock()
+			continue
+		}
+
+		if !exists {
+			record = &DownloadRecord{
+				InfoHash: infoHash,
+				Name:     name,
+				FileID:   fileID,
+				Status:   StatusPending,
+			}
+			dm.records[infoHash] = record
+		}
+		dm.mu.Unlock()
+
+		if cfg.DownloadMode == "video" {
+			ext := strings.ToLower(filepath.Ext(name))
+			if !videoExts[ext] {
+				dm.logger.Info("Skipping non-video file: %s", name)
+				dm.mu.Lock()
+				record.Status = StatusCompleted
+				record.EndTime = time.Now().Unix()
 				dm.mu.Unlock()
 				continue
 			}
-			dm.downloaded[infoHash] = true
-			dm.mu.Unlock()
-
-			if cfg.DownloadMode == "video" {
-				ext := strings.ToLower(filepath.Ext(name))
-				if !videoExts[ext] {
-					dm.logger.Info("Skipping non-video file: %s", name)
-					continue
-				}
-			}
-
-			go dm.downloadCompletedFile(taskMap)
 		}
+
+		go dm.downloadWithSemaphore(taskMap, record)
 	}
+
+	dm.saveDB()
 }
 
-func (dm *DownloadMonitor) downloadCompletedFile(task map[string]interface{}) {
+func (dm *DownloadMonitor) downloadWithSemaphore(task map[string]interface{}, record *DownloadRecord) {
+	dm.downloadSem <- struct{}{}
+	defer func() { <-dm.downloadSem }()
+
+	dm.downloadCompletedFile(task, record)
+}
+
+func (dm *DownloadMonitor) downloadCompletedFile(task map[string]interface{}, record *DownloadRecord) {
 	name, _ := task["name"].(string)
 	fileID, _ := task["file_id"].(string)
 
 	if fileID == "" {
 		dm.logger.Warn("No file_id for task: %s", name)
+		dm.mu.Lock()
+		record.Status = StatusFailed
+		record.Error = "No file_id"
+		record.EndTime = time.Now().Unix()
+		dm.mu.Unlock()
 		return
 	}
 
 	dm.logger.Info("Processing completed task: %s (file_id: %s)", name, fileID)
 
+	dm.mu.Lock()
+	record.Status = StatusDownloading
+	record.StartTime = time.Now().Unix()
+	dm.mu.Unlock()
+
 	fileInfo, err := dm.client.GetFileInfo(fileID)
 	if err != nil {
 		dm.logger.Error("Failed to get file info for %s: %v", name, err)
+		dm.mu.Lock()
+		record.Status = StatusFailed
+		record.Error = err.Error()
+		record.EndTime = time.Now().Unix()
+		dm.mu.Unlock()
 		return
 	}
 
 	data, ok := fileInfo["data"].(map[string]interface{})
 	if !ok {
+		dm.mu.Lock()
+		record.Status = StatusFailed
+		record.Error = "Invalid file info response"
+		record.EndTime = time.Now().Unix()
+		dm.mu.Unlock()
 		return
 	}
 
 	pickCode, _ := data["pick_code"].(string)
 	if pickCode == "" {
 		dm.logger.Warn("No pick_code for file: %s", name)
+		dm.mu.Lock()
+		record.Status = StatusFailed
+		record.Error = "No pick_code"
+		record.EndTime = time.Now().Unix()
+		dm.mu.Unlock()
 		return
 	}
 
 	downloadInfo, err := dm.client.GetDownloadURL(pickCode)
 	if err != nil {
 		dm.logger.Error("Failed to get download URL for %s: %v", name, err)
+		dm.mu.Lock()
+		record.Status = StatusFailed
+		record.Error = err.Error()
+		record.EndTime = time.Now().Unix()
+		dm.mu.Unlock()
 		return
 	}
 
 	dlData, ok := downloadInfo["data"].(map[string]interface{})
 	if !ok {
+		dm.mu.Lock()
+		record.Status = StatusFailed
+		record.Error = "Invalid download info response"
+		record.EndTime = time.Now().Unix()
+		dm.mu.Unlock()
 		return
 	}
 
@@ -204,14 +344,27 @@ func (dm *DownloadMonitor) downloadCompletedFile(task map[string]interface{}) {
 		}
 
 		downloadURL, _ := urlObj["url"].(string)
+		fileName, _ := fileData["file_name"].(string)
+
 		if downloadURL != "" {
+			if fileName == "" {
+				fileName = name
+			}
+
 			dm.mu.Lock()
-			dm.downloadedFiles[name] = "downloading"
+			record.FileName = fileName
 			dm.mu.Unlock()
-			dm.StartFileDownload(downloadURL, name)
+
+			dm.StartFileDownload(downloadURL, fileName, record)
 			return
 		}
 	}
+
+	dm.mu.Lock()
+	record.Status = StatusFailed
+	record.Error = "Could not get download URL"
+	record.EndTime = time.Now().Unix()
+	dm.mu.Unlock()
 }
 
 func (dm *DownloadMonitor) GetStatus() map[string]interface{} {
@@ -219,16 +372,26 @@ func (dm *DownloadMonitor) GetStatus() map[string]interface{} {
 	defer dm.mu.Unlock()
 
 	cfg := dm.config.GetConfig()
+
+	downloadedCount := 0
+	for _, r := range dm.records {
+		if r.Status == StatusCompleted {
+			downloadedCount++
+		}
+	}
+
 	return map[string]interface{}{
-		"running":          dm.running,
-		"download_dir":     cfg.DownloadDir,
-		"monitor_interval": cfg.MonitorInterval,
-		"downloaded_count": len(dm.downloaded),
-		"local_downloads":  len(dm.localDownloads),
+		"running":           dm.running,
+		"download_dir":      cfg.DownloadDir,
+		"monitor_interval":  cfg.MonitorInterval,
+		"downloaded_count":  downloadedCount,
+		"local_downloads":   len(dm.localDownloads),
+		"concurrency":       cfg.DownloadConcurrency,
+		"total_records":     len(dm.records),
 	}
 }
 
-func (dm *DownloadMonitor) StartFileDownload(url, filename string) {
+func (dm *DownloadMonitor) StartFileDownload(url, filename string, record *DownloadRecord) {
 	dm.mu.Lock()
 	task := &LocalDownloadTask{
 		FileName:  filename,
@@ -240,7 +403,7 @@ func (dm *DownloadMonitor) StartFileDownload(url, filename string) {
 	dm.mu.Unlock()
 
 	dm.logger.Info("Starting file download: %s", filename)
-	go dm.downloadFileWithProgress(url, filename, task)
+	go dm.downloadFileWithProgress(url, filename, task, record)
 }
 
 func (dm *DownloadMonitor) GetLocalDownloadTasks() []LocalDownloadTask {
@@ -259,13 +422,13 @@ func (dm *DownloadMonitor) GetDownloadedFiles() map[string]string {
 	defer dm.mu.Unlock()
 
 	result := make(map[string]string)
-	for k, v := range dm.downloadedFiles {
-		result[k] = v
+	for _, r := range dm.records {
+		result[r.Name] = string(r.Status)
 	}
 	return result
 }
 
-func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *LocalDownloadTask) {
+func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *LocalDownloadTask, record *DownloadRecord) {
 	cfg := dm.config.GetConfig()
 	destDir := cfg.DownloadDir
 	os.MkdirAll(destDir, 0755)
@@ -278,8 +441,14 @@ func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *
 		dm.mu.Lock()
 		task.Status = "failed"
 		task.Error = err.Error()
+		if record != nil {
+			record.Status = StatusFailed
+			record.Error = err.Error()
+			record.EndTime = time.Now().Unix()
+		}
 		dm.mu.Unlock()
 		dm.logger.Error("Failed to download %s: %v", filename, err)
+		dm.saveDB()
 		return
 	}
 	defer resp.Body.Close()
@@ -293,8 +462,14 @@ func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *
 		dm.mu.Lock()
 		task.Status = "failed"
 		task.Error = err.Error()
+		if record != nil {
+			record.Status = StatusFailed
+			record.Error = err.Error()
+			record.EndTime = time.Now().Unix()
+		}
 		dm.mu.Unlock()
 		dm.logger.Error("Failed to create file %s: %v", destPath, err)
+		dm.saveDB()
 		return
 	}
 	defer file.Close()
@@ -308,8 +483,14 @@ func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *
 				dm.mu.Lock()
 				task.Status = "failed"
 				task.Error = writeErr.Error()
+				if record != nil {
+					record.Status = StatusFailed
+					record.Error = writeErr.Error()
+					record.EndTime = time.Now().Unix()
+				}
 				dm.mu.Unlock()
 				dm.logger.Error("Failed to write file %s: %v", filename, writeErr)
+				dm.saveDB()
 				return
 			}
 			downloaded += int64(n)
@@ -330,15 +511,23 @@ func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *
 		task.Status = "completed"
 		task.Progress = 100
 		task.Downloaded = downloaded
-		dm.downloadedFiles[filename] = "completed"
+		if record != nil {
+			record.Status = StatusCompleted
+			record.EndTime = time.Now().Unix()
+		}
 		dm.logger.Info("Downloaded %s (%d bytes) to %s", filename, downloaded, destPath)
 	} else {
 		task.Status = "failed"
 		task.Error = "No data received"
-		dm.downloadedFiles[filename] = "failed"
+		if record != nil {
+			record.Status = StatusFailed
+			record.Error = "No data received"
+			record.EndTime = time.Now().Unix()
+		}
 		dm.logger.Error("Downloaded %s but no data received", filename)
 	}
 	dm.mu.Unlock()
+	dm.saveDB()
 }
 
 func (dm *DownloadMonitor) CheckDownloadDir() map[string]interface{} {
