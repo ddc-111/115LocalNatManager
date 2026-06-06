@@ -432,18 +432,7 @@ func (h *SystemHandler) TestDirectory(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SystemHandler) TestDirectoryWrite(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Path string `json:"path"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, model.APIResponse{
-			State:   false,
-			Message: "无效请求",
-		})
-		return
-	}
-
-	dir := req.Path
+	dir := r.URL.Query().Get("dir")
 	if dir == "" {
 		writeJSON(w, http.StatusBadRequest, model.APIResponse{
 			State:   false,

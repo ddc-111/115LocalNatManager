@@ -89,7 +89,7 @@ func NewRouter(client *api.Client, cfg *config.Manager, monitor *service.Downloa
 	api.HandleFunc("/system/dirs", systemHandler.ListDirectory).Methods("GET", "OPTIONS")
 	api.HandleFunc("/system/dirs/create", systemHandler.CreateDirectory).Methods("POST", "OPTIONS")
 	api.HandleFunc("/system/dirs/test", systemHandler.TestDirectory).Methods("GET", "OPTIONS")
-	api.HandleFunc("/system/dirs/test-write", systemHandler.TestDirectoryWrite).Methods("POST", "OPTIONS")
+	api.HandleFunc("/system/dirs/test-write", systemHandler.TestDirectoryWrite).Methods("GET", "OPTIONS")
 
 	api.HandleFunc("/logs", func(w http.ResponseWriter, r *http.Request) {
 		level := r.URL.Query().Get("level")

@@ -134,7 +134,7 @@ function initEventListeners() {
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 测试中';
     try {
-      const result = await apiPost('/api/system/dirs/test-write', { path: dir });
+      const result = await apiGet(`/api/system/dirs/test-write?dir=${encodeURIComponent(dir)}`);
       if (result.state) {
         showToast('目录可写入，测试通过', 'success');
       } else {
