@@ -198,7 +198,10 @@ function initEventListeners() {
 
 async function checkServerStatus() {
   try {
-    const response = await fetch(`${apiBase}/health`, { signal: AbortSignal.timeout(3000) });
+    const response = await fetch(`${apiBase}/health`, { 
+      signal: AbortSignal.timeout(3000),
+      headers: { 'Accept': 'application/json' }
+    });
     const result = await response.json();
     
     const statusEl = document.getElementById('server-status');
@@ -206,7 +209,9 @@ async function checkServerStatus() {
       statusEl.innerHTML = '<span class="status-dot online"></span><span>已连接</span>';
       return true;
     }
-  } catch (error) {}
+  } catch (error) {
+    console.error('Server check failed:', error);
+  }
   
   const statusEl = document.getElementById('server-status');
   statusEl.innerHTML = '<span class="status-dot offline"></span><span>未连接</span>';
@@ -932,34 +937,77 @@ async function toggleMonitor() {
 
 async function apiGet(path) {
   const url = `${apiBase}${path}`.replace(/([^:]\/)\/+/g, '$1');
-  const response = await fetch(url);
-  return response.json();
+  try {
+    const response = await fetch(url, {
+      headers: { 'Accept': 'application/json' }
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('API GET error:', path, error);
+    return { state: false, message: error.message };
+  }
 }
 
 async function apiPost(path, body) {
   const url = `${apiBase}${path}`.replace(/([^:]\/)\/+/g, '$1');
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-  return response.json();
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('API POST error:', path, error);
+    return { state: false, message: error.message };
+  }
 }
 
 async function apiPut(path, body) {
   const url = `${apiBase}${path}`.replace(/([^:]\/)\/+/g, '$1');
-  const response = await fetch(url, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-  return response.json();
+  try {
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('API PUT error:', path, error);
+    return { state: false, message: error.message };
+  }
 }
 
 async function apiDelete(path) {
   const url = `${apiBase}${path}`.replace(/([^:]\/)\/+/g, '$1');
-  const response = await fetch(url, { method: 'DELETE' });
-  return response.json();
+  try {
+    const response = await fetch(url, { 
+      method: 'DELETE',
+      headers: { 'Accept': 'application/json' }
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('API DELETE error:', path, error);
+    return { state: false, message: error.message };
+  }
 }
 
 function showToast(message, type = 'info') {
