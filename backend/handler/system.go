@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"time"
 
 	"115localnatmanager/model"
 )
@@ -131,17 +132,33 @@ func isPathAccessible(path string) bool {
 }
 
 func checkPathAccessible(path string) error {
-	f, err := os.Open(path)
-	if err != nil {
-		// os.Open 失败，尝试 ls 命令（兼容 SMB/NFS）
-		cmdErr := exec.Command("ls", path).Run()
-		if cmdErr == nil {
-			return nil
-		}
-		return fmt.Errorf("os: %v, ls: %v", err, cmdErr)
+	type checkResult struct {
+		err error
 	}
-	f.Close()
-	return nil
+
+	ch := make(chan checkResult, 1)
+	go func() {
+		f, err := os.Open(path)
+		if err != nil {
+			// os.Open 失败，尝试 ls 命令（兼容 SMB/NFS）
+			cmdErr := exec.Command("ls", path).Run()
+			if cmdErr == nil {
+				ch <- checkResult{nil}
+				return
+			}
+			ch <- checkResult{fmt.Errorf("os: %v, ls: %v", err, cmdErr)}
+			return
+		}
+		f.Close()
+		ch <- checkResult{nil}
+	}()
+
+	select {
+	case r := <-ch:
+		return r.err
+	case <-time.After(15 * time.Second):
+		return fmt.Errorf("目录访问超时")
+	}
 }
 
 func listDirByCommand(dir string) ([]DirEntry, error) {

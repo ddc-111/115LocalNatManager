@@ -795,17 +795,35 @@ func (dm *DownloadMonitor) isDirAccessible(dir string) bool {
 		return false
 	}
 
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		dm.logger.Warn("[检测] 目录不可访问: %s, 错误: %v", dir, err)
+	type checkResult struct {
+		accessible bool
+	}
+
+	ch := make(chan checkResult, 1)
+	go func() {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			ch <- checkResult{false}
+			return
+		}
+		testFile := filepath.Join(dir, ".115manager_test")
+		if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+			ch <- checkResult{false}
+			return
+		}
+		os.Remove(testFile)
+		ch <- checkResult{true}
+	}()
+
+	select {
+	case result := <-ch:
+		if !result.accessible {
+			dm.logger.Warn("[检测] 目录不可访问或不可写: %s", dir)
+		}
+		return result.accessible
+	case <-time.After(15 * time.Second):
+		dm.logger.Warn("[检测] 目录访问超时: %s", dir)
 		return false
 	}
-	testFile := filepath.Join(dir, ".115manager_test")
-	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
-		dm.logger.Warn("[检测] 目录不可写: %s, 错误: %v", dir, err)
-		return false
-	}
-	os.Remove(testFile)
-	return true
 }
 
 func (dm *DownloadMonitor) CheckDownloadDir() map[string]interface{} {
@@ -822,22 +840,37 @@ func (dm *DownloadMonitor) CheckDownloadDir() map[string]interface{} {
 		return result
 	}
 
-	if err := os.MkdirAll(cfg.DownloadDir, 0755); err != nil {
-		result["message"] = "Cannot create download directory: " + err.Error()
-		return result
+	type dirCheckResult struct {
+		exists    bool
+		writable  bool
+		message   string
 	}
-	result["exists"] = true
 
-	testFile := filepath.Join(cfg.DownloadDir, ".115manager_test")
-	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
-		result["accessible"] = true
-		result["message"] = "Download directory is readable but not writable: " + err.Error()
-		return result
+	ch := make(chan dirCheckResult, 1)
+	go func() {
+		if err := os.MkdirAll(cfg.DownloadDir, 0755); err != nil {
+			ch <- dirCheckResult{false, false, "Cannot create download directory: " + err.Error()}
+			return
+		}
+
+		testFile := filepath.Join(cfg.DownloadDir, ".115manager_test")
+		if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+			ch <- dirCheckResult{true, false, "Download directory is readable but not writable: " + err.Error()}
+			return
+		}
+		os.Remove(testFile)
+		ch <- dirCheckResult{true, true, "Download directory is ready"}
+	}()
+
+	select {
+	case r := <-ch:
+		result["exists"] = r.exists
+		result["writable"] = r.writable
+		result["accessible"] = r.exists
+		result["message"] = r.message
+	case <-time.After(15 * time.Second):
+		result["message"] = "Directory access timeout"
 	}
-	os.Remove(testFile)
-	result["writable"] = true
-	result["accessible"] = true
-	result["message"] = "Download directory is ready"
 
 	return result
 }
