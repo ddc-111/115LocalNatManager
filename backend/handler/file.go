@@ -286,7 +286,7 @@ func (h *FileHandler) DownloadFile(w http.ResponseWriter, r *http.Request) {
 				fileName = "download"
 			}
 
-			h.monitor.StartFileDownload(downloadURL, fileName, nil)
+			h.monitor.StartFileDownload(downloadURL, fileName, nil, "")
 
 			writeJSON(w, http.StatusOK, model.APIResponse{
 				State:   true,

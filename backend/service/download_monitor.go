@@ -16,10 +16,11 @@ import (
 type DownloadStatus string
 
 const (
-	StatusPending    DownloadStatus = "pending"
+	StatusPending     DownloadStatus = "pending"
 	StatusDownloading DownloadStatus = "downloading"
-	StatusCompleted  DownloadStatus = "completed"
-	StatusFailed     DownloadStatus = "failed"
+	StatusCompleted   DownloadStatus = "completed"
+	StatusFailed      DownloadStatus = "failed"
+	StatusRateLimited DownloadStatus = "rate_limited"
 )
 
 type DownloadRecord struct {
@@ -31,6 +32,7 @@ type DownloadRecord struct {
 	StartTime   int64          `json:"start_time,omitempty"`
 	EndTime     int64          `json:"end_time,omitempty"`
 	FileName    string         `json:"file_name,omitempty"`
+	FolderName  string         `json:"folder_name,omitempty"`
 }
 
 type LocalDownloadTask struct {
@@ -263,6 +265,11 @@ func (dm *DownloadMonitor) checkTasks() {
 			skippedCount++
 			continue
 		}
+		if exists && record.Status == StatusFailed {
+			dm.mu.Unlock()
+			skippedCount++
+			continue
+		}
 		if !exists {
 			record = &DownloadRecord{
 				InfoHash: infoHash,
@@ -334,14 +341,14 @@ func (dm *DownloadMonitor) downloadCompletedFile(task map[string]interface{}, re
 	// 如果是文件夹，获取文件夹内的文件列表
 	if fileCategory == 0 {
 		dm.logger.Info("[下载] %s 是文件夹，获取文件列表...", name)
-		dm.processFolder(name, fileID, record)
+		dm.processFolder(name, fileID, record, name)
 		return
 	}
 
-	dm.downloadSingleFile(name, fileID, record)
+	dm.downloadSingleFile(name, fileID, record, "")
 }
 
-func (dm *DownloadMonitor) processFolder(folderName, folderID string, record *DownloadRecord) {
+func (dm *DownloadMonitor) processFolder(folderName, folderID string, record *DownloadRecord, topFolderName string) {
 	fileList, err := dm.client.GetFileList(folderID, 100, 0)
 	if err != nil {
 		dm.logger.Error("[下载] 获取文件夹 %s 内容失败: %v", folderName, err)
@@ -389,21 +396,22 @@ func (dm *DownloadMonitor) processFolder(folderName, folderID string, record *Do
 		dm.logger.Info("[下载] 处理文件夹 %s 中的文件 %d/%d: %s", folderName, i+1, len(data), fileName)
 
 		newRecord := &DownloadRecord{
-			InfoHash: folderID + "_" + fileID,
-			Name:     fileName,
-			FileID:   fileID,
-			Status:   StatusPending,
+			InfoHash:   folderID + "_" + fileID,
+			Name:       fileName,
+			FileID:     fileID,
+			Status:     StatusPending,
+			FolderName: topFolderName,
 		}
 
 		dm.mu.Lock()
 		dm.records[newRecord.InfoHash] = newRecord
 		dm.mu.Unlock()
 
-		go dm.downloadSingleFile(fileName, fileID, newRecord)
+		go dm.downloadSingleFile(fileName, fileID, newRecord, topFolderName)
 	}
 }
 
-func (dm *DownloadMonitor) downloadSingleFile(name, fileID string, record *DownloadRecord) {
+func (dm *DownloadMonitor) downloadSingleFile(name, fileID string, record *DownloadRecord, folderName string) {
 
 	dm.mu.Lock()
 	record.Status = StatusDownloading
@@ -451,10 +459,23 @@ func (dm *DownloadMonitor) downloadSingleFile(name, fileID string, record *Downl
 	dm.logger.Info("[下载] 步骤2: 获取下载链接...")
 	downloadInfo, err := dm.client.GetDownloadURL(pickCode)
 	if err != nil {
-		dm.logger.Error("[下载] 步骤2失败: 获取下载链接失败 %s: %v", name, err)
+		errMsg := err.Error()
+		dm.logger.Error("[下载] 步骤2失败: 获取下载链接失败 %s: %v", name, errMsg)
+
+		// 检测是否是访问上限错误
+		if dm.isRateLimitError(errMsg) {
+			dm.logger.Warn("[下载] 检测到访问上限错误，任务将稍后重试: %s", name)
+			dm.mu.Lock()
+			record.Status = StatusRateLimited
+			record.Error = "访问上限，等待重试: " + errMsg
+			record.EndTime = 0
+			dm.mu.Unlock()
+			return
+		}
+
 		dm.mu.Lock()
 		record.Status = StatusFailed
-		record.Error = "获取下载链接失败: " + err.Error()
+		record.Error = "获取下载链接失败: " + errMsg
 		record.EndTime = time.Now().Unix()
 		dm.mu.Unlock()
 		return
@@ -511,7 +532,7 @@ func (dm *DownloadMonitor) downloadSingleFile(name, fileID string, record *Downl
 			dm.mu.Unlock()
 
 			dm.logger.Info("[下载] 步骤3: 开始下载文件 %s -> %s", name, fileName)
-			dm.StartFileDownload(downloadURL, fileName, record)
+			dm.StartFileDownload(downloadURL, fileName, record, folderName)
 			return
 		}
 	}
@@ -531,25 +552,30 @@ func (dm *DownloadMonitor) GetStatus() map[string]interface{} {
 	cfg := dm.config.GetConfig()
 
 	downloadedCount := 0
+	rateLimitedCount := 0
 	for _, r := range dm.records {
 		if r.Status == StatusCompleted {
 			downloadedCount++
 		}
+		if r.Status == StatusRateLimited {
+			rateLimitedCount++
+		}
 	}
 
 	return map[string]interface{}{
-		"running":           dm.running,
-		"download_dir":      cfg.DownloadDir,
-		"monitor_interval":  cfg.MonitorInterval,
-		"downloaded_count":  downloadedCount,
-		"local_downloads":   len(dm.localDownloads),
-		"concurrency":       cfg.DownloadConcurrency,
-		"total_records":     len(dm.records),
-		"dir_accessible":    dm.dirAccessible,
+		"running":            dm.running,
+		"download_dir":       cfg.DownloadDir,
+		"monitor_interval":   cfg.MonitorInterval,
+		"downloaded_count":   downloadedCount,
+		"local_downloads":    len(dm.localDownloads),
+		"concurrency":        cfg.DownloadConcurrency,
+		"total_records":      len(dm.records),
+		"dir_accessible":     dm.dirAccessible,
+		"rate_limited_count": rateLimitedCount,
 	}
 }
 
-func (dm *DownloadMonitor) StartFileDownload(url, filename string, record *DownloadRecord) {
+func (dm *DownloadMonitor) StartFileDownload(url, filename string, record *DownloadRecord, folderName string) {
 	dm.mu.Lock()
 	task := &LocalDownloadTask{
 		FileName:  filename,
@@ -562,7 +588,7 @@ func (dm *DownloadMonitor) StartFileDownload(url, filename string, record *Downl
 	dm.mu.Unlock()
 
 	dm.logger.Info("[下载] 开始下载: %s", filename)
-	go dm.downloadFileWithProgress(url, filename, task, record)
+	go dm.downloadFileWithProgress(url, filename, task, record, folderName)
 }
 
 func (dm *DownloadMonitor) CancelDownload(filename string) bool {
@@ -615,10 +641,15 @@ func (dm *DownloadMonitor) GetDownloadedFiles() map[string]interface{} {
 	return result
 }
 
-func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *LocalDownloadTask, record *DownloadRecord) {
+func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *LocalDownloadTask, record *DownloadRecord, folderName string) {
 	cfg := dm.config.GetConfig()
 	destDir := cfg.DownloadDir
-	
+
+	// 如果有文件夹名称，创建对应的子文件夹
+	if folderName != "" {
+		destDir = filepath.Join(destDir, folderName)
+	}
+
 	// 检查下载目录是否可访问
 	if !dm.isDirAccessible(destDir) {
 		dm.logger.Warn("[下载] 下载目录不可访问: %s，等待目录恢复...", destDir)
@@ -626,7 +657,7 @@ func (dm *DownloadMonitor) downloadFileWithProgress(url, filename string, task *
 		task.Status = "waiting"
 		task.Error = "下载目录不可访问，等待恢复"
 		dm.mu.Unlock()
-		
+
 		// 等待目录恢复
 		for {
 			time.Sleep(10 * time.Second)
@@ -824,6 +855,25 @@ func (dm *DownloadMonitor) isDirAccessible(dir string) bool {
 		dm.logger.Warn("[检测] 目录访问超时: %s", dir)
 		return false
 	}
+}
+
+func (dm *DownloadMonitor) isRateLimitError(errMsg string) bool {
+	rateLimitKeywords := []string{
+		"访问上限",
+		"已达到当前访问上限",
+		"请稍后再试",
+		"rate limit",
+		"too many requests",
+		"频率限制",
+	}
+
+	lowerMsg := strings.ToLower(errMsg)
+	for _, keyword := range rateLimitKeywords {
+		if strings.Contains(lowerMsg, strings.ToLower(keyword)) {
+			return true
+		}
+	}
+	return false
 }
 
 func (dm *DownloadMonitor) CheckDownloadDir() map[string]interface{} {
