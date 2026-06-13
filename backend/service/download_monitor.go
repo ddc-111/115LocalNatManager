@@ -60,6 +60,8 @@ type DownloadMonitor struct {
 	downloadSem     chan struct{}
 	dbPath          string
 	dirAccessible   bool
+	apiRateLimiter  *time.Ticker
+	apiRateMu       sync.Mutex
 }
 
 func NewDownloadMonitor(client *api.Client, cfg *config.Manager, logger *Logger) *DownloadMonitor {
@@ -75,6 +77,7 @@ func NewDownloadMonitor(client *api.Client, cfg *config.Manager, logger *Logger)
 		localDownloads: make(map[string]*LocalDownloadTask),
 		dbPath:         dbPath,
 		dirAccessible:  true,
+		apiRateLimiter: time.NewTicker(5 * time.Second),
 	}
 
 	m.loadDB()
@@ -150,6 +153,7 @@ func (dm *DownloadMonitor) Stop() {
 	}
 	close(dm.stopCh)
 	dm.running = false
+	dm.apiRateLimiter.Stop()
 	dm.logger.Info("Download monitor stopped")
 }
 
@@ -349,6 +353,7 @@ func (dm *DownloadMonitor) downloadCompletedFile(task map[string]interface{}, re
 }
 
 func (dm *DownloadMonitor) processFolder(folderName, folderID string, record *DownloadRecord, topFolderName string) {
+	dm.waitForRateLimit()
 	fileList, err := dm.client.GetFileList(folderID, 100, 0)
 	if err != nil {
 		dm.logger.Error("[下载] 获取文件夹 %s 内容失败: %v", folderName, err)
@@ -419,6 +424,7 @@ func (dm *DownloadMonitor) downloadSingleFile(name, fileID string, record *Downl
 	dm.mu.Unlock()
 
 	dm.logger.Info("[下载] 步骤1: 获取文件信息...")
+	dm.waitForRateLimit()
 	fileInfo, err := dm.client.GetFileInfo(fileID)
 	if err != nil {
 		dm.logger.Error("[下载] 步骤1失败: 获取文件信息失败 %s: %v", name, err)
@@ -457,6 +463,7 @@ func (dm *DownloadMonitor) downloadSingleFile(name, fileID string, record *Downl
 	dm.logger.Info("[下载] 步骤1成功: 获取到 pick_code: %s", pickCode)
 
 	dm.logger.Info("[下载] 步骤2: 获取下载链接...")
+	dm.waitForRateLimit()
 	downloadInfo, err := dm.client.GetDownloadURL(pickCode)
 	if err != nil {
 		errMsg := err.Error()
@@ -624,6 +631,20 @@ func (dm *DownloadMonitor) GetLocalDownloadTasks() []LocalDownloadTask {
 		tasks = append(tasks, *task)
 	}
 	return tasks
+}
+
+func (dm *DownloadMonitor) ClearCompletedDownloads() int {
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
+
+	count := 0
+	for name, task := range dm.localDownloads {
+		if task.Status == "completed" || task.Status == "failed" || task.Status == "cancelled" {
+			delete(dm.localDownloads, name)
+			count++
+		}
+	}
+	return count
 }
 
 func (dm *DownloadMonitor) GetDownloadedFiles() map[string]interface{} {
@@ -874,6 +895,10 @@ func (dm *DownloadMonitor) isRateLimitError(errMsg string) bool {
 		}
 	}
 	return false
+}
+
+func (dm *DownloadMonitor) waitForRateLimit() {
+	<-dm.apiRateLimiter.C
 }
 
 func (dm *DownloadMonitor) CheckDownloadDir() map[string]interface{} {

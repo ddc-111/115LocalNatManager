@@ -5,6 +5,7 @@ let selectedFolder = null;
 let selectedFiles = new Set();
 let currentDirBrowserCallback = null;
 let currentDirPath = '/';
+let dirPathStack = [];
 
 document.addEventListener('DOMContentLoaded', async () => {
   await loadSettings();
@@ -515,8 +516,13 @@ async function loadFiles(cid = '0') {
     } else {
       container.innerHTML = '<div class="empty-state"><i class="fas fa-folder-open"></i><p>此文件夹为空</p></div>';
     }
+    
+    if (cid === '0') {
+      dirPathStack = [];
+      updateBreadcrumb();
+    }
   } catch (error) {
-    container.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>失败 to load files</p></div>';
+    container.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>加载失败</p></div>';
   }
 }
 
@@ -564,8 +570,13 @@ function renderFiles(files) {
     item.addEventListener('click', (e) => {
       if (e.target.classList.contains('file-item-checkbox') || e.target.classList.contains('rename-btn')) return;
       if (item.dataset.isFolder === 'true') {
+        const existingIndex = dirPathStack.findIndex(p => p.cid === item.dataset.id);
+        if (existingIndex >= 0) {
+          dirPathStack = dirPathStack.slice(0, existingIndex + 1);
+        } else {
+          dirPathStack.push({ cid: item.dataset.id, name: item.dataset.name });
+        }
         loadFiles(item.dataset.id);
-        updateBreadcrumb(item.dataset.id, item.dataset.name);
       }
     });
     
@@ -591,24 +602,30 @@ function getFileIcon(ext) {
   return icons[ext?.toLowerCase()] || 'file';
 }
 
-function updateBreadcrumb(cid, name) {
+function updateBreadcrumb() {
   const breadcrumb = document.getElementById('file-breadcrumb');
-  if (cid === '0') {
-    breadcrumb.innerHTML = '<span class="crumb active" data-cid="0"><i class="fas fa-home"></i> Root</span>';
-  } else {
-    breadcrumb.innerHTML = `
-      <span class="crumb" data-cid="0"><i class="fas fa-home"></i> Root</span>
-      <span class="crumb-separator">/</span>
-      <span class="crumb active" data-cid="${cid}">${escapeHtml(name)}</span>
-    `;
+  let html = '<span class="crumb" data-cid="0"><i class="fas fa-home"></i> Root</span>';
+  
+  for (let i = 0; i < dirPathStack.length; i++) {
+    html += '<span class="crumb-separator">/</span>';
+    const isLast = i === dirPathStack.length - 1;
+    html += `<span class="crumb${isLast ? ' active' : ''}" data-cid="${dirPathStack[i].cid}">${escapeHtml(dirPathStack[i].name)}</span>`;
   }
+  
+  breadcrumb.innerHTML = html;
   
   breadcrumb.querySelectorAll('.crumb').forEach(crumb => {
     crumb.addEventListener('click', () => {
-      loadFiles(crumb.dataset.cid);
-      if (crumb.dataset.cid === '0') {
-        breadcrumb.innerHTML = '<span class="crumb active" data-cid="0"><i class="fas fa-home"></i> Root</span>';
+      const cid = crumb.dataset.cid;
+      if (cid === '0') {
+        dirPathStack = [];
+      } else {
+        const index = dirPathStack.findIndex(p => p.cid === cid);
+        if (index >= 0) {
+          dirPathStack = dirPathStack.slice(0, index + 1);
+        }
       }
+      loadFiles(cid);
     });
   });
 }
@@ -1514,16 +1531,12 @@ function toggleAutoRefresh() {
 
 async function clearCompletedDownloads() {
   try {
-    const result = await apiGet('/api/files/local-downloads');
-    if (result.state && result.data) {
-      const completed = result.data.filter(t => t.status === 'completed' || t.status === 'failed');
-      if (completed.length === 0) {
-        showToast('没有已完成的任务需要清除', 'info');
-        return;
-      }
-      
-      showToast(`已清除 ${completed.length} 个已完成任务`, 'success');
+    const result = await apiPost('/api/files/local-downloads/clear', {});
+    if (result.state) {
+      showToast(result.message || '已清除已完成任务', 'success');
       loadLocalDownloadTasks();
+    } else {
+      showToast(result.message || '清除失败', 'error');
     }
   } catch (error) {
     showToast('清除失败', 'error');

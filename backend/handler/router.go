@@ -46,6 +46,7 @@ func NewRouter(client *api.Client, cfg *config.Manager, monitor *service.Downloa
 	api.HandleFunc("/files/download", fileHandler.DownloadFile).Methods("POST", "OPTIONS")
 	api.HandleFunc("/files/download-url", fileHandler.GetDownloadURL).Methods("POST", "OPTIONS")
 	api.HandleFunc("/files/local-downloads", fileHandler.GetLocalDownloads).Methods("GET", "OPTIONS")
+	api.HandleFunc("/files/local-downloads/clear", fileHandler.ClearCompletedDownloads).Methods("POST", "OPTIONS")
 	api.HandleFunc("/files/{id}", fileHandler.GetFileInfo).Methods("GET", "OPTIONS")
 	api.HandleFunc("/files/{id}", fileHandler.RenameFile).Methods("PUT", "OPTIONS")
 	api.HandleFunc("/folders", fileHandler.CreateFolder).Methods("POST", "OPTIONS")

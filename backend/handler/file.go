@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -82,6 +83,41 @@ func (h *FileHandler) SearchFiles(w http.ResponseWriter, r *http.Request) {
 			Message: err.Error(),
 		})
 		return
+	}
+
+	if data, ok := result["data"].([]interface{}); ok {
+		normalized := make([]interface{}, 0, len(data))
+		for _, item := range data {
+			if fileMap, ok := item.(map[string]interface{}); ok {
+				normFile := make(map[string]interface{})
+				if v, ok := fileMap["file_id"]; ok {
+					normFile["fid"] = v
+				}
+				if v, ok := fileMap["file_name"]; ok {
+					normFile["fn"] = v
+				}
+				if v, ok := fileMap["file_category"]; ok {
+					normFile["fc"] = v
+				}
+				if v, ok := fileMap["file_size"]; ok {
+					normFile["fs"] = v
+				}
+				if v, ok := fileMap["ico"]; ok {
+					normFile["ico"] = v
+				}
+				if v, ok := fileMap["parent_id"]; ok {
+					normFile["pid"] = v
+				}
+				if v, ok := fileMap["pick_code"]; ok {
+					normFile["pc"] = v
+				}
+				if v, ok := fileMap["sha1"]; ok {
+					normFile["sha1"] = v
+				}
+				normalized = append(normalized, normFile)
+			}
+		}
+		result["data"] = normalized
 	}
 
 	writeJSON(w, http.StatusOK, result)
@@ -310,6 +346,17 @@ func (h *FileHandler) GetLocalDownloads(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, model.APIResponse{
 		State: true,
 		Data:  tasks,
+	})
+}
+
+func (h *FileHandler) ClearCompletedDownloads(w http.ResponseWriter, r *http.Request) {
+	count := h.monitor.ClearCompletedDownloads()
+	writeJSON(w, http.StatusOK, model.APIResponse{
+		State:   true,
+		Message: fmt.Sprintf("Cleared %d completed tasks", count),
+		Data: map[string]interface{}{
+			"cleared_count": count,
+		},
 	})
 }
 
