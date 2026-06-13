@@ -516,14 +516,11 @@ async function loadFiles(cid = '0') {
     } else {
       container.innerHTML = '<div class="empty-state"><i class="fas fa-folder-open"></i><p>此文件夹为空</p></div>';
     }
-    
-    if (cid === '0') {
-      dirPathStack = [];
-      updateBreadcrumb();
-    }
   } catch (error) {
     container.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>加载失败</p></div>';
   }
+  
+  updateBreadcrumb();
 }
 
 function renderFiles(files) {

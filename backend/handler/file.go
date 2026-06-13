@@ -85,9 +85,19 @@ func (h *FileHandler) SearchFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var files []interface{}
+	
 	if data, ok := result["data"].([]interface{}); ok {
-		normalized := make([]interface{}, 0, len(data))
-		for _, item := range data {
+		files = data
+	} else if dataMap, ok := result["data"].(map[string]interface{}); ok {
+		if innerData, ok := dataMap["data"].([]interface{}); ok {
+			files = innerData
+		}
+	}
+	
+	if files != nil {
+		normalized := make([]interface{}, 0, len(files))
+		for _, item := range files {
 			if fileMap, ok := item.(map[string]interface{}); ok {
 				normFile := make(map[string]interface{})
 				if v, ok := fileMap["file_id"]; ok {
@@ -100,7 +110,14 @@ func (h *FileHandler) SearchFiles(w http.ResponseWriter, r *http.Request) {
 					normFile["fc"] = v
 				}
 				if v, ok := fileMap["file_size"]; ok {
-					normFile["fs"] = v
+					switch val := v.(type) {
+					case string:
+						if val != "" {
+							normFile["fs"] = val
+						}
+					default:
+						normFile["fs"] = val
+					}
 				}
 				if v, ok := fileMap["ico"]; ok {
 					normFile["ico"] = v
